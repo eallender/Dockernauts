@@ -1,0 +1,28 @@
+Screen {
+    background: #000011;
+}
+
+#galaxy-stars {
+    width: 100%;
+    height: 3;
+    color: #4a9eff;
+    background: #000011;
+}
+
+#map {
+    color: #00ffff;
+    text-align: center;
+    margin: 2;
+    border: solid #0088ff;
+    padding: 2;
+    background: rgba(0, 17, 51, 0.3);
+}
+
+Button {
+    width: 20;
+    height: 3;
+    margin: 1;
+    background: rgba(0, 17, 51, 0.8);
+    color: #00ffff;
+    border: solid #0088ff;
+}
