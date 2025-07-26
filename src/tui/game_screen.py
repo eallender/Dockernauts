@@ -1,13 +1,16 @@
 import random
-import time
 from io import StringIO
 from tui.assets.planet_templates import PLANET_TEMPLATES
+from config import AppConfig
 
 from textual.screen import Screen
 from textual.widgets import Static
 from textual.reactive import reactive
 from textual.containers import Container
-from textual import events
+from textual.app import ComposeResult
+from textual.containers import Horizontal
+
+CONFIG = AppConfig().get_config()
 
 
 class SpaceView(Static):
@@ -21,14 +24,36 @@ class SpaceView(Static):
         self.planet_templates = PLANET_TEMPLATES
         self.planet_sector_size = 100
         self.needs_render = True
+        self.status_callback = None  # Add callback for status updates
+
+    def set_status_callback(self, callback):
+        """Set a callback function to update status"""
+        self.status_callback = callback
 
     def on_mount(self):
         self.set_interval(1 / 30, self.refresh_display)
 
     def pan(self, dx: int, dy: int):
-        self.offset_x += dx * 2  # move 2 columns per horizontal step
-        self.offset_y += dy      # keep vertical step as 1 row
+        self.offset_x += dx * 2  # move 2 columns per horizontal step (slower horizontal movement)
+        self.offset_y += dy      
         self.needs_render = True
+        
+        # Update sector when panning
+        if self.status_callback:
+            self.update_sector_position()
+
+    def update_sector_position(self):
+        """Calculate current sector based on screen center"""
+        width, height = self.size.width, self.size.height
+        if width <= 0 or height <= 0:
+            return
+        
+        center_x = self.offset_x + width // 2
+        center_y = self.offset_y + height // 2
+        sector_x = center_x // self.planet_sector_size
+        sector_y = center_y // self.planet_sector_size * -1
+        
+        self.status_callback(sector_x, sector_y)
 
     def refresh_display(self):
         if not self.needs_render:
@@ -41,10 +66,10 @@ class SpaceView(Static):
         ox, oy = self.offset_x, self.offset_y
         buf = StringIO()
 
-        # Cache of what’s drawn so planets can overwrite it
+        # Cache of what's drawn so planets can overwrite it
         char_grid = [[" "] * width for _ in range(height)]
 
-        # --- Draw stars first ---
+        # draw stars first 
         for row in range(height):
             y = oy + row
             for col in range(width):
@@ -55,7 +80,7 @@ class SpaceView(Static):
                     rng.choice(self.star_chars) if rng.random() < self.density else " "
                 )
 
-        # --- Generate & draw planets ---
+        # generate and draw planets 
         self._populate_visible_planets(ox, oy, width, height)
 
         for (px, py), planet in self.planets.items():
@@ -66,7 +91,6 @@ class SpaceView(Static):
                     if 0 <= sx < width and 0 <= sy < height and ch != " ":
                         char_grid[sy][sx] = ch
 
-        # --- Convert grid to string ---
         for row in char_grid:
             buf.write("".join(row) + "\n")
 
@@ -99,10 +123,51 @@ class SpaceView(Static):
                             "art": template,
                         }
 
+class StatusBar(Horizontal):
+    fuel = reactive(100)
+    gold = reactive(50)
+    sector_x = reactive(0)
+    sector_y = reactive(0)
+
+    def __init__(self):
+        super().__init__()
+        self.fuel_display = Static("⛽ Fuel: 0", id="fuel")
+        self.gold_display = Static("🪙 Gold: 0", id="gold") 
+        self.sector_display = Static("🗺️ Sector: (0,0)", id="sector")
+
+        for display in [self.fuel_display, self.gold_display, self.sector_display]:
+            display.styles.height = 1
+            display.styles.max_height = 1
+
+    def compose(self) -> ComposeResult:
+        yield self.fuel_display
+        yield self.gold_display
+        yield self.sector_display
+
+    def on_mount(self):
+        self.watch_fuel(self.fuel)
+        self.watch_gold(self.gold)
+        self.watch_sector_x(self.sector_x)
+        self.watch_sector_y(self.sector_y)
+
+    def watch_fuel(self, value):
+        self.fuel_display.update(f"⛽ Fuel: {value}")
+
+    def watch_gold(self, value):
+        self.gold_display.update(f"🪙 Gold: {value}")
+
+    def watch_sector_x(self, value):
+        self.sector_display.update(f"🗺️ Sector: ({value},{self.sector_y})")
+
+    def watch_sector_y(self, value):
+        self.sector_display.update(f"🗺️ Sector: ({self.sector_x},{value})")
+
+
 
 class SpaceScreen(Screen):
     """Full-screen star viewer. Arrow keys pan around."""
-
+    CSS_PATH = f"{CONFIG.get('root')}/static/screens/game_screen.css"
+    
     BINDINGS = [
         ("up", "pan('up')", "Pan Up"),
         ("down", "pan('down')", "Pan Down"),
@@ -112,15 +177,29 @@ class SpaceScreen(Screen):
     ]
 
     def compose(self):
-        yield Container(
-            SpaceView(),
-            id="space-container"
-        )
+        status_bar = StatusBar()
+        status_bar.id = "status-bar"
+        yield status_bar
+        yield Container(SpaceView(), id="space-container")
 
     def on_mount(self) -> None:
         space_view = self.query_one(SpaceView)
         space_view.styles.width = "100%"
         space_view.styles.height = "100%"
+
+        self.status = self.query_one(StatusBar)
+        space_view.set_status_callback(self.update_sector_from_space_view)        
+        self.set_interval(0.5, self.update_status)
+        space_view.update_sector_position()
+
+    def update_sector_from_space_view(self, sector_x, sector_y):
+        """Called by SpaceView when sector changes"""
+        self.status.sector_x = sector_x
+        self.status.sector_y = sector_y
+
+    def update_status(self):
+        self.status.fuel = 97 # TODO: Replace with feedback from game master
+        self.status.gold = 120
 
     def action_pan(self, direction: str) -> None:
         view = self.query_one(SpaceView)

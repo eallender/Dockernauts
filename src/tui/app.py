@@ -1,14 +1,13 @@
 import random
+from config import AppConfig
+from tui.game_screen import SpaceScreen
+
 from textual.app import App, ComposeResult
 from textual.containers import Container, Vertical, Horizontal
 from textual.widgets import Header, Footer, Static, Button
 from textual.screen import Screen
 from textual import events
 from textual.timer import Timer
-from config import AppConfig
-from tui.save_manager import SaveManager
-from tui.game_screen import SpaceScreen
-
 
 CONFIG = AppConfig().get_config()
 
@@ -178,7 +177,6 @@ class GalaxyScreen(Screen):
         yield StarField(width=80, height=3, id="galaxy-stars-bottom")
         yield Footer()
 
-# ---------- App ----------
 class DockernautsApp(App):
     BINDINGS = [
         ("q", "quit", "Quit")
