@@ -9,6 +9,7 @@ from textual.reactive import reactive
 from textual.containers import Container
 from textual.app import ComposeResult
 from textual.containers import Horizontal
+from textual.events import Click
 
 CONFIG = AppConfig().get_config()
 
@@ -24,14 +25,54 @@ class SpaceView(Static):
         self.planet_templates = PLANET_TEMPLATES
         self.planet_sector_size = 100
         self.needs_render = True
-        self.status_callback = None  # Add callback for status updates
+        self.status_callback = None
+        self.planet_click_callback = None
 
     def set_status_callback(self, callback):
         """Set a callback function to update status"""
         self.status_callback = callback
 
+    def set_planet_click_callback(self, callback):
+        """Set a callback function for when planets are clicked"""
+        self.planet_click_callback = callback
+
     def on_mount(self):
         self.set_interval(1 / 30, self.refresh_display)
+
+    def on_click(self, event: Click) -> None:
+        """Handle mouse clicks to detect planet interactions"""
+        if not self.planet_click_callback:
+            return
+            
+        # Convert screen coordinates to world coordinates
+        world_x = self.offset_x + event.x
+        world_y = self.offset_y + event.y
+        
+        # Check if click is on any planet
+        clicked_planet = self.get_planet_at_position(world_x, world_y)
+        if clicked_planet:
+            self.planet_click_callback(clicked_planet)
+
+    def get_planet_at_position(self, world_x, world_y):
+        """Check if the given world coordinates are on a planet"""
+        for (px, py), planet in self.planets.items():
+            planet_art = planet["art"]
+            planet_w = max(len(line) for line in planet_art)
+            planet_h = len(planet_art)
+            
+            # Check if click is within planet bounds
+            if px <= world_x < px + planet_w and py <= world_y < py + planet_h:
+                # Check if click is on a non-space character
+                art_x, art_y = world_x - px, world_y - py
+                if 0 <= art_y < len(planet_art) and 0 <= art_x < len(planet_art[art_y]):
+                    if planet_art[art_y][art_x] != " ":
+                        return {
+                            "position": (px, py),
+                            "world_coords": (world_x, world_y),
+                            "art": planet_art,
+                            "sector": (px // self.planet_sector_size, py // self.planet_sector_size)
+                        }
+        return None
 
     def pan(self, dx: int, dy: int):
         self.offset_x += dx * 2  # move 2 columns per horizontal step (slower horizontal movement)
@@ -66,7 +107,7 @@ class SpaceView(Static):
         ox, oy = self.offset_x, self.offset_y
         buf = StringIO()
 
-        # Cache of what's drawn so planets can overwrite it
+        # cache of whats drawn so planets can overwrite it
         char_grid = [[" "] * width for _ in range(height)]
 
         # draw stars first 
@@ -108,14 +149,14 @@ class SpaceView(Static):
             for sy in range(min_sector_y, max_sector_y + 1):
                 if (sx, sy) not in self.planets:
                     rng = random.Random((sx * 99991 + sy * 31337) & 0xFFFFFFFF)
-                    if rng.random() < 0.8:  # 10% chance to place a planet
+                    if rng.random() < 0.8:  # %chance to place a planet
                         template = rng.choice(self.planet_templates)
                         planet_w = max(len(line) for line in template)
                         planet_h = len(template)
 
                         if planet_w > sector_w or planet_h > sector_w:
                             print(f"Skipping planet too large ({planet_w}x{planet_h}) for sector size {sector_w}")
-                            continue  # skip this planet or resize sector_w accordingly
+                            continue
 
                         planet_x = sx * sector_w + rng.randint(0, sector_w - planet_w)
                         planet_y = sy * sector_w + rng.randint(0, sector_w - planet_h)
@@ -123,45 +164,52 @@ class SpaceView(Static):
                             "art": template,
                         }
 
+
 class StatusBar(Horizontal):
-    fuel = reactive(100)
-    gold = reactive(50)
+    food = reactive(0)
+    gold = reactive(0)
+    metal = reactive(0)
     sector_x = reactive(0)
     sector_y = reactive(0)
 
     def __init__(self):
         super().__init__()
-        self.fuel_display = Static("⛽ Fuel: 0", id="fuel")
-        self.gold_display = Static("🪙 Gold: 0", id="gold") 
-        self.sector_display = Static("🗺️ Sector: (0,0)", id="sector")
+        self.food_display = Static("Food: 0", id="food")
+        self.gold_display = Static("Gold: 0", id="gold") 
+        self.metal_display = Static("Metal: 0", id="metal")
+        self.sector_display = Static("Sector: (0,0)", id="sector")
 
-        for display in [self.fuel_display, self.gold_display, self.sector_display]:
+        for display in [self.food_display, self.gold_display, self.metal_display, self.sector_display]:
             display.styles.height = 1
             display.styles.max_height = 1
 
     def compose(self) -> ComposeResult:
-        yield self.fuel_display
+        yield self.food_display
         yield self.gold_display
+        yield self.metal_display
         yield self.sector_display
 
     def on_mount(self):
-        self.watch_fuel(self.fuel)
+        self.watch_food(self.food)
         self.watch_gold(self.gold)
+        self.watch_metal(self.metal)
         self.watch_sector_x(self.sector_x)
         self.watch_sector_y(self.sector_y)
 
-    def watch_fuel(self, value):
-        self.fuel_display.update(f"⛽ Fuel: {value}")
+    def watch_food(self, value):
+        self.food_display.update(f"Food: {value}")
 
     def watch_gold(self, value):
-        self.gold_display.update(f"🪙 Gold: {value}")
+        self.gold_display.update(f"Gold: {value}")
+
+    def watch_metal(self, value):
+        self.metal_display.update(f"Metal: {value}")
 
     def watch_sector_x(self, value):
-        self.sector_display.update(f"🗺️ Sector: ({value},{self.sector_y})")
+        self.sector_display.update(f"Sector: ({value},{self.sector_y})")
 
     def watch_sector_y(self, value):
-        self.sector_display.update(f"🗺️ Sector: ({self.sector_x},{value})")
-
+        self.sector_display.update(f"Sector: ({self.sector_x},{value})")
 
 
 class SpaceScreen(Screen):
@@ -188,9 +236,30 @@ class SpaceScreen(Screen):
         space_view.styles.height = "100%"
 
         self.status = self.query_one(StatusBar)
-        space_view.set_status_callback(self.update_sector_from_space_view)        
+        space_view.set_status_callback(self.update_sector_from_space_view)
+        space_view.set_planet_click_callback(self.on_planet_clicked)        
         self.set_interval(0.5, self.update_status)
         space_view.update_sector_position()
+
+    def on_planet_clicked(self, planet_info):
+        """Handle planet click events"""
+        px, py = planet_info["position"]
+        sector = planet_info["sector"]
+        
+        self.notify(
+            f"Clicked planet at ({px}, {py}) in sector {sector}",
+            title="Planet Selected",
+            timeout=3
+        )
+        
+        # TODO: Show side menu/modal for planet interaction
+        # self.show_planet_menu(planet_info)
+
+    def show_planet_menu(self, planet_info):
+        """Show a side menu or modal for planet interaction"""
+        # TODO: implement side menu
+        # push a new screen, show a modal, or update a sidebar
+        pass
 
     def update_sector_from_space_view(self, sector_x, sector_y):
         """Called by SpaceView when sector changes"""
@@ -198,8 +267,9 @@ class SpaceScreen(Screen):
         self.status.sector_y = sector_y
 
     def update_status(self):
-        self.status.fuel = 97 # TODO: Replace with feedback from game master
+        self.status.food = 97 # TODO: Replace with feedback from game master
         self.status.gold = 120
+        self.status.metal = 100
 
     def action_pan(self, direction: str) -> None:
         view = self.query_one(SpaceView)
