@@ -7,6 +7,7 @@ from textual import events
 from textual.timer import Timer
 from config import AppConfig
 from tui.save_manager import SaveManager
+from tui.game_screen import SpaceScreen
 
 
 CONFIG = AppConfig().get_config()
@@ -149,7 +150,7 @@ class TitleScreen(Screen):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "start":
-            self.app.push_screen(SaveManager())
+            self.app.push_screen(SpaceScreen())
         elif event.button.id == "exit":
             self.app.exit()
         elif event.button.id == "galaxy":
