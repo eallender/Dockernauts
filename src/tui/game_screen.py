@@ -1,6 +1,7 @@
 import random
 from tui.assets.planet_templates import PLANET_TEMPLATES
 from config import AppConfig
+from utils.logger import Logger
 
 from textual.screen import Screen
 from textual.widgets import Static
@@ -12,6 +13,7 @@ from textual.events import Click
 from rich.text import Text
 
 CONFIG = AppConfig().get_config()
+logger = Logger("game_screen")
 
 PLANET_TYPES = {
     "desert": {"color": "yellow", "name": "Desert World"},
@@ -177,7 +179,7 @@ class SpaceView(Static):
                         planet_h = len(template)
 
                         if planet_w > sector_w or planet_h > sector_w:
-                            print(f"Skipping planet too large ({planet_w}x{planet_h}) for sector size {sector_w}")
+                            logger.debug(f"Skipping planet too large ({planet_w}x{planet_h}) for sector size {sector_w}")
                             continue
 
                         planet_type = rng.choice(list(PLANET_TYPES.keys()))

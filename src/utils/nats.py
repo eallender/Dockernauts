@@ -1,4 +1,5 @@
 import json
+from utils.logger import Logger
 from nats.aio.client import Client as NATS
 
 class JetStreamClient:
@@ -8,6 +9,7 @@ class JetStreamClient:
         self.subject = subject
         self.nc = NATS()
         self.js = None
+        self.logger = Logger("nats_logger")
 
     async def connect(self):
         await self.nc.connect(servers=[self.servers])
@@ -16,7 +18,7 @@ class JetStreamClient:
     async def publish_json(self, data: dict):
         message = json.dumps(data)
         ack = await self.js.publish(self.subject, message.encode())
-        print(f"Published to {self.subject}, seq={ack.seq}")
+        self.logger.debug(f"Published to {self.subject}, seq={ack.seq}")
 
     async def subscribe_json(self, callback):
         async def message_handler(msg):
@@ -24,7 +26,7 @@ class JetStreamClient:
                 decoded = json.loads(msg.data.decode())
                 await callback(decoded)
             except json.JSONDecodeError:
-                print(f"Invalid JSON: {msg.data}")
+                self.logger.error(f"Invalid JSON: {msg.data}")
 
         await self.js.subscribe(self.subject, cb=message_handler, durable="durable")
 
