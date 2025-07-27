@@ -1,10 +1,11 @@
 import random
 from config import AppConfig
 from tui.game_screen import SpaceScreen
+from tui.intructions import InstructionsScreen
 
 from textual.app import App, ComposeResult
 from textual.containers import Container, Vertical, Horizontal
-from textual.widgets import Header, Footer, Static, Button
+from textual.widgets import Static, Button
 from textual.screen import Screen
 from textual import events
 from textual.timer import Timer
@@ -85,7 +86,7 @@ class TitleScreen(Screen):
                 
                 Container(
                     Button("🚀 START EXPLORING", id="start"),
-                    Button("🌍 GALAXY MAP", id="galaxy"),
+                    Button("📖 HOW TO PLAY", id="instructions"),
                     Button("❌ EXIT TO VOID", id="exit"),
                     id="menu-buttons"
                 ),
@@ -152,30 +153,8 @@ class TitleScreen(Screen):
             self.app.push_screen(SpaceScreen())
         elif event.button.id == "exit":
             self.app.exit()
-        elif event.button.id == "galaxy":
-            self.app.push_screen(GalaxyScreen())   
-
-class GalaxyScreen(Screen):
-    CSS_PATH = f"{CONFIG.get('root')}/static/screens/galaxy.css"
-    
-    def compose(self) -> ComposeResult:
-        yield Header()
-        yield StarField(id="galaxy-stars")
-        yield Static("""
-╔═══════════════════ GALAXY SECTOR 7-Alpha ═══════════════════╗
-║                                                               ║
-║        🪐 TERRA        🛸 MARS         🌑 LUNA               ║
-║         [⚡120]        [⛽ 89]        [🔬 45]               ║
-║                                                               ║
-║        🪐 EUROPA       🪐 TITAN       🛸 KEPLER             ║
-║         [❄️ 67]        [⛽234]        [🔬156]               ║
-║                                                               ║  
-║  Legend: ⚡Energy  ⛽Fuel  🔬Research  ❄️Ice  🏭Industry    ║
-╚═══════════════════════════════════════════════════════════════╝
-        """, id="map")
-        yield Button("Enter Terra", id="terra")
-        yield StarField(width=80, height=3, id="galaxy-stars-bottom")
-        yield Footer()
+        elif event.button.id == "instructions":
+            self.app.push_screen(InstructionsScreen())   
 
 class DockernautsApp(App):
     BINDINGS = [

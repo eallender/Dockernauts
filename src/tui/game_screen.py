@@ -1,5 +1,4 @@
 import random
-from io import StringIO
 from tui.assets.planet_templates import PLANET_TEMPLATES
 from config import AppConfig
 
