@@ -1,0 +1,42 @@
+version: "3.9"
+services:
+  nats:
+    image: nats:latest
+    container_name: dockernauts_nats
+    networks:
+      - dockernauts
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+
+  master-station:
+    image: game-master:latest
+    container_name: dockernauts_master
+    networks:
+      - dockernauts
+    build:
+      context: .
+      dockerfile: ./game_master/dockerfile
+
+  build-planet-image:
+    build:
+      context: .
+      dockerfile: ./planet/dockerfile
+    image: dockernauts_planet:latest
+    profiles:
+      - buildonly
+
+  nats-client:
+    image: natsio/nats-box
+    container_name: nats_client
+    restart: always
+    networks:
+      - dockernauts
+    depends_on:
+      - nats
+    entrypoint: /bin/sh
+    tty: true
+
+networks:
+  dockernauts:
+    driver: bridge

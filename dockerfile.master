@@ -1,0 +1,19 @@
+FROM 3.13.5-alpine3.21
+
+# Install system dependencies
+RUN apk add --no-cache gcc musl-dev libffi-dev
+
+# Install pip
+RUN python3 -m ensurepip && \
+    pip3 install --no-cache --upgrade pip setuptools
+
+COPY pyproject.toml poetry.lock /app/
+WORKDIR /app
+
+RUN pip install poetry
+RUN poetry install
+
+COPY src/ ./
+
+CMD ["poetry", "run", "python", "src/galaxy/master_station.py"]
+
