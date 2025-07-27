@@ -21,6 +21,7 @@ class StarField(Static):
         self.star_chars = [".", "*", "·", "✦", "✧", "⋆"]
         self.update_interval = update_interval
         self._timer: Timer | None = None
+        self.can_focus = False
 
     def on_mount(self) -> None:
         """Called when widget is first mounted."""
@@ -61,6 +62,17 @@ class SmallScreenMsg(Static):
 # ---------- Screens ----------
 class TitleScreen(Screen):
     CSS_PATH = f"{CONFIG.get('root')}/static/screens/title.css"
+    
+    BINDINGS = [
+        ("up", "previous_button", "Previous"),
+        ("down", "next_button", "Next"),
+        ("enter", "select_button", "Select"),
+    ]
+    
+    def __init__(self):
+        super().__init__()
+        self.current_button_index = 0
+        self.button_ids = ["start", "instructions", "exit"]
 
     def compose(self) -> ComposeResult:
         yield SmallScreenMsg()
@@ -103,6 +115,44 @@ class TitleScreen(Screen):
         
         # Bottom starfield
         yield StarField(id="bottom-stars")
+
+    def on_mount(self) -> None:
+        """Focus the first button when the screen loads"""
+        self.update_button_focus()
+
+    def update_button_focus(self):
+        """Update which button has focus based on current_button_index"""
+        try:
+            # Remove focus from all buttons first
+            for button_id in self.button_ids:
+                button = self.query_one(f"#{button_id}")
+                button.remove_class("focused")
+            
+            current_button = self.query_one(f"#{self.button_ids[self.current_button_index]}")
+            current_button.focus()
+            current_button.add_class("focused")
+        except Exception:
+            pass
+
+    def action_previous_button(self) -> None:
+        """Move to previous button"""
+        self.current_button_index = (self.current_button_index - 1) % len(self.button_ids)
+        self.update_button_focus()
+
+    def action_next_button(self) -> None:
+        """Move to next button"""
+        self.current_button_index = (self.current_button_index + 1) % len(self.button_ids)
+        self.update_button_focus()
+
+    def action_select_button(self) -> None:
+        """Select the currently focused button"""
+        current_button_id = self.button_ids[self.current_button_index]
+        if current_button_id == "start":
+            self.app.push_screen(SpaceScreen())
+        elif current_button_id == "instructions":
+            self.app.push_screen(InstructionsScreen())
+        elif current_button_id == "exit":
+            self.app.exit()
 
     def on_resize(self, event: events.Resize) -> None:
         width = event.size.width
