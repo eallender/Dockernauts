@@ -9,14 +9,14 @@ Dockernauts is an immersive ASCII-based space exploration game built with Python
 
 ### Infinite Space Exploration
 
-Procedurally Generated Universe: Explore an endless cosmos with algorithmically placed planets and star systems
-Smooth Panning: Navigate seamlessly through space with arrow key controls
-Sector-Based Coordinates: Track your location with a sector-based positioning system
+Procedurally Generated Universe: Explore an endless cosmos with algorithmically placed planets and star systems  
+Smooth Panning: Navigate seamlessly through space with arrow key controls  
+Sector-Based Coordinates: Track your location with a sector-based positioning system  
 
 ### Interactive Planets
 
-Clickable Planets: Click on any planet to interact with it
-Diverse Planet Types: Discover 8 different planet types, each with unique characteristics:
+Clickable Planets: Click on any planet to interact with it  
+Diverse Planet Types: Discover 8 different planet types, each with unique characteristics:  
 
 - Desert Worlds (Yellow)
 - Ocean Worlds (Blue)
@@ -40,66 +40,71 @@ Real-time Status Bar: Monitor your resources at all times
 
 ## Visual Design
 
-Rich ASCII Art: Beautifully crafted planet designs using Unicode characters
-Color-Coded Elements: Each planet type has its own distinctive color
-Starfield Background: Procedurally generated stars create an immersive space atmosphere
-Responsive UI: Clean, terminal-optimized interface that works on any screen size
+Rich ASCII Art: Beautifully crafted planet designs using Unicode characters  
+Color-Coded Elements: Each planet type has its own distinctive color  
+Starfield Background: Procedurally generated stars create an immersive space atmosphere  
 
 ## Installation
 
 ### Prerequisites
 
-Python 3.11+
-[Poetry](https://python-poetry.org/docs/)
-Terminal with Unicode support
-Mouse support (for planet interaction)
+- Python 3.11+
+- [Poetry](https://python-poetry.org/docs/)
+- Terminal with Unicode support
+- Mouse support (for planet interaction)
 
-Setup
-bash# Clone the repository
+### Setup
+**Clone the repository**
+```bash 
 git clone https://github.com/eallender/Dockernauts.git
 cd dockernauts
+```
 
 ### Install dependencies
+```bash
 poetry install
+```
 
 ### Run the game
+```bash
 poetry run python src/main.py
+```
 
 ## How to Play
-Controls
+**Controls**
 
 Arrow Keys: Pan around the universe
 
-⬆️ Move up
-⬇️ Move down
-⬅️ Move left
-➡️ Move right
+⬆️ Move up  
+⬇️ Move down  
+⬅️ Move left  
+➡️ Move right  
 
-Mouse Click: Interact with planets
+Mouse Click: Interact with planets  
 Q: Quit/Go back
 
-Getting Started
+### Getting Started
 
-Launch the game and you'll start in space sector (0,0)
-Use arrow keys to explore the universe
-Watch the sector coordinates change as you move
-Click on any planet you discover to interact with it
-Monitor your resources in the status bar
-Discover different planet types and conquer the galaxy!
+Launch the game and you'll start in space sector (0,0)  
+Use arrow keys to explore the universe  
+Watch the sector coordinates change as you move  
+Click on any planet you discover to interact with it  
+Monitor your resources in the status bar  
+Discover different planet types and conquer the galaxy!  
 
 ### Tips
 
-Each sector is 100x100 units - planets are distributed across sectors
-Different planet types may offer different resources and opportunities
-Keep an eye on your resource levels as you explore
-The universe is infinite - there's always more to discover!
+Each sector is 100x100 units - planets are distributed across sectors  
+Different planet types may offer different resources and opportunities  
+Keep an eye on your resource levels as you explore  
+The universe is infinite - there's always more to discover!  
 
 ### Key Features
 
-Procedural Generation: Uses seeded random generation for consistent universe
-Efficient Rendering: Only renders visible areas for smooth performance
-Event-Driven Architecture: Clean separation between UI and game logic
-Modular Design: Easy to extend with new planet types and game mechanics
+Procedural Generation: Uses seeded random generation for consistent universe  
+Efficient Rendering: Only renders visible areas for smooth performance  
+Event-Driven Architecture: Clean separation between UI and game logic  
+Modular Design: Easy to extend with new planet types and game mechanics  
 
 ## Development Roadmap
 Planned Features
