@@ -22,7 +22,7 @@ PLANET_TYPES = {
     "ice": {"color": "cyan", "name": "Ice World"},
     "volcanic": {"color": "red", "name": "Volcanic World"},
     "gas_giant": {"color": "purple", "name": "Gas Giant"},
-    "rocky": {"color": "grey", "name": "Rocky World"},
+    "rocky": {"color": "white", "name": "Rocky World"},
     "crystal": {"color": "magenta", "name": "Crystal World"},
 }
 
@@ -173,7 +173,7 @@ class SpaceView(Static):
             for sy in range(min_sector_y, max_sector_y + 1):
                 if (sx, sy) not in self.planets:
                     rng = random.Random((sx * 99991 + sy * 31337) & 0xFFFFFFFF)
-                    if rng.random() < 0.8:
+                    if rng.random() < 1:
                         template = rng.choice(self.planet_templates)
                         planet_w = max(len(line) for line in template)
                         planet_h = len(template)
