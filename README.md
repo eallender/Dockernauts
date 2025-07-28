@@ -1,8 +1,8 @@
 ![Dockernauts](static/imgs/title-screen.png)
 
-Created for a Boot.dev hackathon,
+**A Terminal-Based Space Exploration Game**
 
-Is A Terminal-Based Space Exploration Game
+Created for a Boot.dev hackathon,
 Dockernauts is an immersive ASCII-based space exploration game built with Python and Textual. Navigate through a procedurally generated universe, discover colorful planets, manage resources, and build your space empire!
 
 ## Features
