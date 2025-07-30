@@ -1,16 +1,18 @@
 import random
-from config import AppConfig
+
+from textual import events
+from textual.app import App, ComposeResult
+from textual.containers import Container, Horizontal, Vertical
+from textual.screen import Screen
+from textual.timer import Timer
+from textual.widgets import Button, Static
+
 from tui.game_screen import SpaceScreen
 from tui.intructions import InstructionsScreen
-
-from textual.app import App, ComposeResult
-from textual.containers import Container, Vertical, Horizontal
-from textual.widgets import Static, Button
-from textual.screen import Screen
-from textual import events
-from textual.timer import Timer
+from utils.config import AppConfig
 
 CONFIG = AppConfig().get_config()
+
 
 class StarField(Static):
     """Custom widget that generates stars to fill its container."""
@@ -51,6 +53,7 @@ class StarField(Static):
 
         self.update("\n".join(stars))
 
+
 class SmallScreenMsg(Static):
     def __init__(self):
         super().__init__("Please enlarge your window to see the title screen.")
@@ -59,16 +62,17 @@ class SmallScreenMsg(Static):
         self.styles.text_align = "center"
         self.styles.padding = (1, 2)
 
+
 # ---------- Screens ----------
 class TitleScreen(Screen):
     CSS_PATH = f"{CONFIG.get('root')}/static/screens/title.css"
-    
+
     BINDINGS = [
         ("up", "previous_button", "Previous"),
         ("down", "next_button", "Next"),
         ("enter", "select_button", "Select"),
     ]
-    
+
     def __init__(self):
         super().__init__()
         self.current_button_index = 0
@@ -78,12 +82,12 @@ class TitleScreen(Screen):
         yield SmallScreenMsg()
         # Top starfield
         yield StarField(id="top-stars")
-        
+
         yield Horizontal(
             StarField(id="left-stars"),
-            
             Vertical(
-                Static("""
+                Static(
+                    """
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║   ██████╗  ██████╗  ██████╗██╗  ██╗███████╗██████╗ ███╗   ██╗ █████╗ ██╗   ██╗████████╗███████╗   ║
 ║   ██╔══██╗██╔═══██╗██╔════╝██║ ██╔╝██╔════╝██╔══██╗████╗  ██║██╔══██╗██║   ██║╚══██╔══╝██╔════╝   ║
@@ -92,27 +96,26 @@ class TitleScreen(Screen):
 ║   ██████╔╝╚██████╔╝╚██████╗██║  ██╗███████╗██║  ██║██║ ╚████║██║  ██║╚██████╔╝   ██║   ███████║   ║
 ║   ╚═════╝  ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝   ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
-                """, id="game-title"),
-                
+                """,
+                    id="game-title",
+                ),
                 Static("◊ GALACTIC CONQUEST AWAITS ◊", id="subtitle"),
-                
                 Container(
                     Button("🚀 START EXPLORING", id="start"),
                     Button("📖 HOW TO PLAY", id="instructions"),
                     Button("❌ EXIT TO VOID", id="exit"),
-                    id="menu-buttons"
+                    id="menu-buttons",
                 ),
-                
-                Static("[ Press ENTER to select • Press Q to quit • Use ↑↓ to navigate ]", id="status-bar"),
-                
-                id="center-content"
+                Static(
+                    "[ Press ENTER to select • Press Q to quit • Use ↑↓ to navigate ]",
+                    id="status-bar",
+                ),
+                id="center-content",
             ),
-            
             StarField(id="right-stars"),
-            
-            id="main-layout"
+            id="main-layout",
         )
-        
+
         # Bottom starfield
         yield StarField(id="bottom-stars")
 
@@ -127,8 +130,10 @@ class TitleScreen(Screen):
             for button_id in self.button_ids:
                 button = self.query_one(f"#{button_id}")
                 button.remove_class("focused")
-            
-            current_button = self.query_one(f"#{self.button_ids[self.current_button_index]}")
+
+            current_button = self.query_one(
+                f"#{self.button_ids[self.current_button_index]}"
+            )
             current_button.focus()
             current_button.add_class("focused")
         except Exception:
@@ -136,12 +141,16 @@ class TitleScreen(Screen):
 
     def action_previous_button(self) -> None:
         """Move to previous button"""
-        self.current_button_index = (self.current_button_index - 1) % len(self.button_ids)
+        self.current_button_index = (self.current_button_index - 1) % len(
+            self.button_ids
+        )
         self.update_button_focus()
 
     def action_next_button(self) -> None:
         """Move to next button"""
-        self.current_button_index = (self.current_button_index + 1) % len(self.button_ids)
+        self.current_button_index = (self.current_button_index + 1) % len(
+            self.button_ids
+        )
         self.update_button_focus()
 
     def action_select_button(self) -> None:
@@ -157,8 +166,8 @@ class TitleScreen(Screen):
     def on_resize(self, event: events.Resize) -> None:
         width = event.size.width
 
-        min_screen_width = 110          # Below this: show small screen message
-        min_star_screen_width = 115     # Below this: hide side stars
+        min_screen_width = 110  # Below this: show small screen message
+        min_star_screen_width = 115  # Below this: hide side stars
         max_screen_width = 150
         min_side_width = 1
         max_side_width = 20
@@ -188,8 +197,12 @@ class TitleScreen(Screen):
                     star.display = False
             else:
                 clamped_width = max(min_star_screen_width, min(max_screen_width, width))
-                ratio = (clamped_width - min_star_screen_width) / (max_screen_width - min_star_screen_width)
-                side_width = int(ratio * (max_side_width - min_side_width) + min_side_width)
+                ratio = (clamped_width - min_star_screen_width) / (
+                    max_screen_width - min_star_screen_width
+                )
+                side_width = int(
+                    ratio * (max_side_width - min_side_width) + min_side_width
+                )
 
                 for star in left_stars:
                     star.styles.width = side_width
@@ -204,12 +217,11 @@ class TitleScreen(Screen):
         elif event.button.id == "exit":
             self.app.exit()
         elif event.button.id == "instructions":
-            self.app.push_screen(InstructionsScreen())   
+            self.app.push_screen(InstructionsScreen())
+
 
 class DockernautsApp(App):
-    BINDINGS = [
-        ("q", "quit", "Quit")
-    ]
+    BINDINGS = [("q", "quit", "Quit")]
 
     def on_mount(self) -> None:
         self.push_screen(TitleScreen())
@@ -218,6 +230,7 @@ class DockernautsApp(App):
         """Handle escape key to go back"""
         if len(self.screen_stack) > 1:
             self.pop_screen()
+
 
 if __name__ == "__main__":
     app = DockernautsApp()

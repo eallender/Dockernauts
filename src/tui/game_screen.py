@@ -1,16 +1,16 @@
 import random
-from tui.assets.planet_templates import PLANET_TEMPLATES
-from config import AppConfig
-from utils.logger import Logger
 
+from rich.text import Text
+from textual.app import ComposeResult
+from textual.containers import Container, Horizontal
+from textual.events import Click
+from textual.reactive import reactive
 from textual.screen import Screen
 from textual.widgets import Static
-from textual.reactive import reactive
-from textual.containers import Container
-from textual.app import ComposeResult
-from textual.containers import Horizontal
-from textual.events import Click
-from rich.text import Text
+
+from tui.assets.planet_templates import PLANET_TEMPLATES
+from utils.config import AppConfig
+from utils.logger import Logger
 
 CONFIG = AppConfig().get_config()
 logger = Logger(__name__).get_logger()
@@ -56,11 +56,11 @@ class SpaceView(Static):
         """Handle mouse clicks to detect planet interactions"""
         if not self.planet_click_callback:
             return
-            
+
         # Convert screen coordinates to world coordinates
         world_x = self.offset_x + event.x
         world_y = self.offset_y + event.y
-        
+
         clicked_planet = self.get_planet_at_position(world_x, world_y)
         if clicked_planet:
             self.planet_click_callback(clicked_planet)
@@ -71,7 +71,7 @@ class SpaceView(Static):
             planet_art = planet["art"]
             planet_w = max(len(line) for line in planet_art)
             planet_h = len(planet_art)
-            
+
             # Check if click is within planet bounds
             if px <= world_x < px + planet_w and py <= world_y < py + planet_h:
                 # Check if click is on a non-space character
@@ -84,15 +84,18 @@ class SpaceView(Static):
                             "art": planet_art,
                             "type": planet.get("type", "rocky"),
                             "color": planet.get("color", "white"),
-                            "sector": (px // self.planet_sector_size, py // self.planet_sector_size)
+                            "sector": (
+                                px // self.planet_sector_size,
+                                py // self.planet_sector_size,
+                            ),
                         }
         return None
 
     def pan(self, dx: int, dy: int):
         self.offset_x += dx * 2
-        self.offset_y += dy      
+        self.offset_y += dy
         self.needs_render = True
-        
+
         if self.status_callback:
             self.update_sector_position()
 
@@ -101,12 +104,12 @@ class SpaceView(Static):
         width, height = self.size.width, self.size.height
         if width <= 0 or height <= 0:
             return
-        
+
         center_x = self.offset_x + width // 2
         center_y = self.offset_y + height // 2
         sector_x = center_x // self.planet_sector_size
         sector_y = center_y // self.planet_sector_size * -1
-        
+
         self.status_callback(sector_x, sector_y)
 
     def refresh_display(self):
@@ -118,7 +121,7 @@ class SpaceView(Static):
             return
 
         ox, oy = self.offset_x, self.offset_y
-        
+
         # Create a Rich Text object for colored output
         text = Text()
 
@@ -126,7 +129,7 @@ class SpaceView(Static):
         char_grid = [[" "] * width for _ in range(height)]
         color_grid = [["#4a9eff"] * width for _ in range(height)]  # Default star color
 
-        # Draw stars first 
+        # Draw stars first
         for row in range(height):
             y = oy + row
             for col in range(width):
@@ -137,7 +140,7 @@ class SpaceView(Static):
                     rng.choice(self.star_chars) if rng.random() < self.density else " "
                 )
 
-        # Generate and draw planets 
+        # Generate and draw planets
         self._populate_visible_planets(ox, oy, width, height)
 
         for (px, py), planet in self.planets.items():
@@ -179,7 +182,9 @@ class SpaceView(Static):
                         planet_h = len(template)
 
                         if planet_w > sector_w or planet_h > sector_w:
-                            logger.debug(f"Skipping planet too large ({planet_w}x{planet_h}) for sector size {sector_w}")
+                            logger.debug(
+                                f"Skipping planet too large ({planet_w}x{planet_h}) for sector size {sector_w}"
+                            )
                             continue
 
                         planet_type = rng.choice(list(PLANET_TYPES.keys()))
@@ -191,7 +196,7 @@ class SpaceView(Static):
                             "art": template,
                             "type": planet_type,
                             "color": planet_info["color"],
-                            "name": planet_info["name"]
+                            "name": planet_info["name"],
                         }
 
 
@@ -205,11 +210,16 @@ class StatusBar(Horizontal):
     def __init__(self):
         super().__init__()
         self.food_display = Static("Food: 0", id="food")
-        self.gold_display = Static("Gold: 0", id="gold") 
+        self.gold_display = Static("Gold: 0", id="gold")
         self.metal_display = Static("Metal: 0", id="metal")
         self.sector_display = Static("Sector: (0,0)", id="sector")
 
-        for display in [self.food_display, self.gold_display, self.metal_display, self.sector_display]:
+        for display in [
+            self.food_display,
+            self.gold_display,
+            self.metal_display,
+            self.sector_display,
+        ]:
             display.styles.height = 1
             display.styles.max_height = 1
 
@@ -244,8 +254,9 @@ class StatusBar(Horizontal):
 
 class SpaceScreen(Screen):
     """Full-screen star viewer. Arrow keys pan around."""
+
     CSS_PATH = f"{CONFIG.get('root')}/static/screens/game_screen.css"
-    
+
     BINDINGS = [
         ("up", "pan('up')", "Pan Up"),
         ("down", "pan('down')", "Pan Down"),
@@ -267,7 +278,7 @@ class SpaceScreen(Screen):
 
         self.status = self.query_one(StatusBar)
         space_view.set_status_callback(self.update_sector_from_space_view)
-        space_view.set_planet_click_callback(self.on_planet_clicked)        
+        space_view.set_planet_click_callback(self.on_planet_clicked)
         self.set_interval(0.5, self.update_status)
         space_view.update_sector_position()
 
@@ -276,11 +287,11 @@ class SpaceScreen(Screen):
         px, py = planet_info["position"]
         sector = planet_info["sector"]
         planet_type = planet_info.get("type", "Unknown")
-        
+
         self.notify(
             f"Clicked {planet_type} planet at ({px}, {py}) in sector {sector}",
             title="Planet Selected",
-            timeout=3
+            timeout=3,
         )
 
     def update_sector_from_space_view(self, sector_x, sector_y):
@@ -289,14 +300,18 @@ class SpaceScreen(Screen):
         self.status.sector_y = sector_y
 
     def update_status(self):
-        self.status.food = 97 # TODO: Replace with feedback from game master
+        self.status.food = 97  # TODO: Replace with feedback from game master
         self.status.gold = 120
         self.status.metal = 100
 
     def action_pan(self, direction: str) -> None:
         view = self.query_one(SpaceView)
         match direction:
-            case "up": view.pan(0, -1)
-            case "down": view.pan(0, 1)
-            case "left": view.pan(-1, 0)
-            case "right": view.pan(1, 0)
+            case "up":
+                view.pan(0, -1)
+            case "down":
+                view.pan(0, 1)
+            case "left":
+                view.pan(-1, 0)
+            case "right":
+                view.pan(1, 0)

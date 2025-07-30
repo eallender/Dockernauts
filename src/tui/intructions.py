@@ -1,17 +1,19 @@
-from config import AppConfig
-
+from rich.markdown import Markdown
 from textual.app import ComposeResult
 from textual.containers import Container, ScrollableContainer
-from textual.widgets import Header, Footer, Static
 from textual.screen import Screen
-from rich.markdown import Markdown
+from textual.widgets import Footer, Header, Static
+
+from utils.config import AppConfig
 
 CONFIG = AppConfig().get_config()
 
+
 class InstructionsScreen(Screen):
     """Instructions screen explaining how to play the game."""
+
     CSS_PATH = f"{CONFIG.get('root')}/static/screens/instructions.css"
-    
+
     BINDINGS = [
         ("q", "app.pop_screen", "Back to Menu"),
         ("escape", "app.pop_screen", "Back to Menu"),
