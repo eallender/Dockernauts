@@ -7,7 +7,7 @@ from nats.aio.client import Client as NATS
 from nats.js.api import StreamConfig
 from nats.aio.msg import Msg
 
-logger = Logger("master_station")
+logger = Logger(__name__).get_logger()
 NATS_ADDRESS = os.getenv("NATS_ADDRESS", "nats://localhost:4222")
 
 class MasterStation():

@@ -2,7 +2,7 @@ import docker
 from utils.logger import Logger
 
 client = docker.from_env()
-logger = Logger("docker_manager")
+logger = Logger(__name__).get_logger()
 
 def start_container(image_name, container_name, ports=None, environment=None):
     try:

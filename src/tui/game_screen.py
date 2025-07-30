@@ -13,7 +13,7 @@ from textual.events import Click
 from rich.text import Text
 
 CONFIG = AppConfig().get_config()
-logger = Logger("game_screen")
+logger = Logger(__name__).get_logger()
 
 PLANET_TYPES = {
     "desert": {"color": "yellow", "name": "Desert World"},

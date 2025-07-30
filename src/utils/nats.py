@@ -9,7 +9,7 @@ class JetStreamClient:
         self.subject = subject
         self.nc = NATS()
         self.js = None
-        self.logger = Logger("nats_logger")
+        self.logger = Logger(__name__).get_logger()
 
     async def connect(self):
         await self.nc.connect(servers=[self.servers])
