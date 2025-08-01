@@ -4,6 +4,9 @@ services:
     container_name: dockernauts_nats
     networks:
       - dockernauts
+    command: [
+      "-js"
+    ]
     ports:
       - "4222:4222"
       - "8222:8222"
@@ -22,6 +25,8 @@ services:
   master-station:
     image: master-station:latest
     container_name: dockernauts_master
+    environment:
+      - NATS_ADDRESS=nats://nats:4222
     networks:
       - dockernauts
     build:

@@ -24,27 +24,33 @@ class MasterStation:
             self.resources[k] += v
 
     async def create_streams(self, streams: list):
-        if self.nc.is_connected:
-            js = self.nc.jetstream()
+        if not self.nc.is_connected:
+            await self.nc.connect(servers=[NATS_ADDRESS])
 
-            for stream in streams:
+        js = self.nc.jetstream()
+
+        for stream in streams:
+            try:
+                await js.stream_info(stream)
+                self.logger.debug(f"NATS stream '{stream}' already exists")
+            except NotFoundError:
+                config = StreamConfig(
+                    name=stream,
+                    subjects=[
+                        f"{stream}.>"
+                    ],  # Use f-string for correct wildcard substitution
+                )
                 try:
-                    await js.stream_info(stream)
-                    self.logger.debug(f"NATs stream, {stream}, already exists")
-                except NotFoundError:
-                    config = StreamConfig(
-                        name=stream,
-                        subjects=["{stream}.>"],
-                    )
-                    try:
-                        await js.add_stream(config)
-                        self.logger.debug(f"Added NATs stream: {stream}")
-                    except Exception as e:
-                        self.logger.error(f"Failed to add stream: {e}")
-            await self.nc.drain()
+                    await js.add_stream(config)
+                    self.logger.debug(f"Added NATS stream: '{stream}'")
+                except Exception as e:
+                    self.logger.error(f"Failed to add stream '{stream}': {e}")
+
+        await self.nc.drain()
+        await self.nc.close()
 
     async def create_master_listener(self):
-        self.master_listener = JetStreamClient(NATS_ADDRESS, "MASTER", "resources")
+        self.master_listener = JetStreamClient(NATS_ADDRESS, "MASTER.resources")
         await self.master_listener.connect()
         await self.master_listener.subscribe_json(self.resource_cb)
 
@@ -53,6 +59,8 @@ async def main():
     master_station = MasterStation()
     await master_station.create_streams(NATS_STREAMS)
     await master_station.create_master_listener()
+
+    await asyncio.Event().wait()
 
 
 if __name__ == "__main__":
