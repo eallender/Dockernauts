@@ -28,7 +28,10 @@ SpaceView {
     color: #4a9eff;
 }
 
-#food, #gold, #metal, #sector {
+#food,
+#gold,
+#metal,
+#sector {
     text-style: bold;
     width: auto;
     min-width: 15;

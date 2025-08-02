@@ -13,7 +13,7 @@ services:
 
   nats-box:
     image: natsio/nats-box
-    container_name: nats_client
+    container_name: dockernauts_natsbox
     restart: always
     networks:
       - dockernauts

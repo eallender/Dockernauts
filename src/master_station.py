@@ -1,13 +1,9 @@
 import asyncio
+import json
 import os
 
-from nats.aio.client import Client as NATS
-from nats.aio.msg import Msg
-from nats.js.api import StreamConfig
-from nats.js.errors import NotFoundError
-
 from utils.logger import Logger
-from utils.nats import JetStreamClient
+from utils.nats import NatsClient
 
 NATS_ADDRESS = os.getenv("NATS_ADDRESS", "nats://localhost:4222")
 NATS_STREAMS = ["PLANETS", "MASTER"]
@@ -17,48 +13,51 @@ class MasterStation:
     def __init__(self):
         self.resources = {"gold": 0, "food": 0, "metal": 0}
         self.logger = Logger(__name__).get_logger()
-        self.nc = NATS()
+        self.game_state_publisher = None  # track it for reuse
 
-    async def resource_cb(self, msg: dict):
-        for k, v in msg.items():
-            self.resources[k] += v
+    async def resource_cb(self, msg):
+        try:
+            self.logger.debug("Received resource transmission")
+            data = json.loads(msg.data.decode())
+            for k, v in data.items():
+                self.resources[k] += int(v)
+            self.logger.debug(
+                f"Gold: {self.resources.get('gold')}, Food: {self.resources.get('food')}, Metal: {self.resources.get('metal')}"
+            )
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Invalid JSON in message: {msg.data} — {e}")
+        except Exception as e:
+            self.logger.exception(f"Error handling resource message: {e}")
 
-    async def create_streams(self, streams: list):
-        if not self.nc.is_connected:
-            await self.nc.connect(servers=[NATS_ADDRESS])
+    async def game_state_reply_cb(self, msg, publisher):
+        try:
+            game_stats = {
+                "resources": self.resources,
+            }
+            await publisher.publish_reply_json(game_stats, msg)
+        except Exception as e:
+            self.logger.exception(f"Failed to handle game state request: {e}")
 
-        js = self.nc.jetstream()
+    async def create_master_subs(self):
+        self.master_resource_sub = NatsClient(NATS_ADDRESS, "MASTER.resources")
+        await self.master_resource_sub.connect()
+        await self.master_resource_sub.create_streams(NATS_STREAMS)
+        await self.master_resource_sub.subscribe_js(self.resource_cb)
 
-        for stream in streams:
-            try:
-                await js.stream_info(stream)
-                self.logger.debug(f"NATS stream '{stream}' already exists")
-            except NotFoundError:
-                config = StreamConfig(
-                    name=stream,
-                    subjects=[
-                        f"{stream}.>"
-                    ],  # Use f-string for correct wildcard substitution
-                )
-                try:
-                    await js.add_stream(config)
-                    self.logger.debug(f"Added NATS stream: '{stream}'")
-                except Exception as e:
-                    self.logger.error(f"Failed to add stream '{stream}': {e}")
+    async def create_game_state_pub(self):
+        self.game_state_publisher = NatsClient(NATS_ADDRESS, "game.state")
+        await self.game_state_publisher.connect()
 
-        await self.nc.drain()
-        await self.nc.close()
+        async def callback_wrapper(msg):
+            await self.game_state_reply_cb(msg, self.game_state_publisher)
 
-    async def create_master_listener(self):
-        self.master_listener = JetStreamClient(NATS_ADDRESS, "MASTER.resources")
-        await self.master_listener.connect()
-        await self.master_listener.subscribe_json(self.resource_cb)
+        await self.game_state_publisher.subscribe(callback_wrapper)
 
 
 async def main():
     master_station = MasterStation()
-    await master_station.create_streams(NATS_STREAMS)
-    await master_station.create_master_listener()
+    await master_station.create_master_subs()
+    await master_station.create_game_state_pub()
 
     await asyncio.Event().wait()
 

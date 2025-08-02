@@ -1,3 +1,4 @@
+import json
 import random
 
 from rich.text import Text
@@ -265,6 +266,11 @@ class SpaceScreen(Screen):
         ("q", "app.pop_screen", "Back"),
     ]
 
+    def __init__(self, nats_client, **kwargs):
+        super().__init__(**kwargs)
+        self.nats_client = nats_client
+        self.latest_game_state = {}
+
     def compose(self):
         status_bar = StatusBar()
         status_bar.id = "status-bar"
@@ -279,7 +285,7 @@ class SpaceScreen(Screen):
         self.status = self.query_one(StatusBar)
         space_view.set_status_callback(self.update_sector_from_space_view)
         space_view.set_planet_click_callback(self.on_planet_clicked)
-        self.set_interval(0.5, self.update_status)
+        self.set_interval(1, self.update_status)
         space_view.update_sector_position()
 
     def on_planet_clicked(self, planet_info):
@@ -299,10 +305,20 @@ class SpaceScreen(Screen):
         self.status.sector_x = sector_x
         self.status.sector_y = sector_y
 
-    def update_status(self):
-        self.status.food = 97  # TODO: Replace with feedback from game master
-        self.status.gold = 120
-        self.status.metal = 100
+    async def request_game_state(self):
+        try:
+            response = await self.nats_client.nc.request("game.state", b"", timeout=1)
+            data = json.loads(response.data.decode())
+            self.latest_game_state = data.get("resources", {})
+        except Exception as e:
+            logger.error(f"Failed to request game state: {e}")
+
+    async def update_status(self):
+        await self.request_game_state()
+        resources = self.latest_game_state
+        self.status.food = resources.get("food", 0)
+        self.status.gold = resources.get("gold", 0)
+        self.status.metal = resources.get("metal", 0)
 
     def action_pan(self, direction: str) -> None:
         view = self.query_one(SpaceView)

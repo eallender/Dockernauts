@@ -1,3 +1,4 @@
+import os
 import random
 
 from textual import events
@@ -10,8 +11,10 @@ from textual.widgets import Button, Static
 from tui.game_screen import SpaceScreen
 from tui.intructions import InstructionsScreen
 from utils.config import AppConfig
+from utils.nats import NatsClient
 
 CONFIG = AppConfig().get_config()
+NATS_ADDRESS = os.getenv("NATS_ADDRESS", "nats://localhost:4222")
 
 
 class StarField(Static):
@@ -63,7 +66,6 @@ class SmallScreenMsg(Static):
         self.styles.padding = (1, 2)
 
 
-# ---------- Screens ----------
 class TitleScreen(Screen):
     CSS_PATH = f"{CONFIG.get('root')}/static/screens/title.css"
 
@@ -73,8 +75,9 @@ class TitleScreen(Screen):
         ("enter", "select_button", "Select"),
     ]
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, nats_client, **kwargs):
+        super().__init__(**kwargs)
+        self.nats_client = nats_client
         self.current_button_index = 0
         self.button_ids = ["start", "instructions", "exit"]
 
@@ -157,7 +160,7 @@ class TitleScreen(Screen):
         """Select the currently focused button"""
         current_button_id = self.button_ids[self.current_button_index]
         if current_button_id == "start":
-            self.app.push_screen(SpaceScreen())
+            self.app.push_screen(SpaceScreen(nats_client=self.nats_client))
         elif current_button_id == "instructions":
             self.app.push_screen(InstructionsScreen())
         elif current_button_id == "exit":
@@ -213,7 +216,7 @@ class TitleScreen(Screen):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "start":
-            self.app.push_screen(SpaceScreen())
+            self.app.push_screen(SpaceScreen(nats_client=self.nats_client))
         elif event.button.id == "exit":
             self.app.exit()
         elif event.button.id == "instructions":
@@ -223,8 +226,10 @@ class TitleScreen(Screen):
 class DockernautsApp(App):
     BINDINGS = [("q", "quit", "Quit")]
 
-    def on_mount(self) -> None:
-        self.push_screen(TitleScreen())
+    async def on_mount(self) -> None:
+        self.nats_client = NatsClient(NATS_ADDRESS, subject="game.state")
+        await self.nats_client.connect()
+        self.push_screen(TitleScreen(nats_client=self.nats_client))
 
     def action_back(self) -> None:
         """Handle escape key to go back"""

@@ -3,11 +3,14 @@ import json
 
 from nats.aio.client import Client as NATS
 from nats.aio.errors import ErrConnectionClosed, ErrNoServers, ErrTimeout
+from nats.aio.msg import Msg
+from nats.js.api import StreamConfig
+from nats.js.errors import NotFoundError
 
 from utils.logger import Logger
 
 
-class JetStreamClient:
+class NatsClient:
     def __init__(self, servers, subject, max_retries=5, retry_delay=2):
         self.servers = servers
         self.subject = subject
@@ -34,19 +37,7 @@ class JetStreamClient:
         except ErrNoServers as e:
             self.logger.error(f"Could not connect to NATS server: {e}")
 
-    async def on_disconnect(self, nc):
-        self.logger.warning("Disconnected from NATS.")
-
-    async def on_reconnect(self, nc):
-        self.logger.info("Reconnected to NATS.")
-
-    async def on_close(self, nc):
-        self.logger.warning("Connection to NATS closed.")
-
-    async def on_error(self, nc, sub, error):
-        self.logger.error(f"NATS error on subscription '{sub}': {error}")
-
-    async def publish_json(self, data: dict):
+    async def publish_js_json(self, data: dict):
         if not self.js:
             self.logger.error("Cannot publish: not connected to JetStream.")
             return
@@ -59,24 +50,71 @@ class JetStreamClient:
         except Exception as e:
             self.logger.exception(f"Failed to publish message: {e}")
 
-    async def subscribe_json(self, callback):
+    async def publish_reply_json(self, data: dict, msg: Msg):
+        if not self.nc:
+            self.logger.error("Cannot publish: not connected to NATs.")
+            return
+        try:
+            ack = await self.nc.publish(msg.reply, json.dumps(data).encode())
+            self.logger.debug(f"Published to '{self.subject}'")
+        except Exception as e:
+            self.logger.exception(f"Failed to publish message: {e}")
+
+    async def subscribe_js(self, callback, *callback_args):
         if not self.js:
             self.logger.error("Cannot subscribe: not connected to JetStream.")
             return
 
-        async def message_handler(msg):
-            try:
-                decoded = json.loads(msg.data.decode())
-                self.logger.debug(f"Received message on '{msg.subject}': {decoded}")
-                await callback(decoded)
-            except json.JSONDecodeError:
-                self.logger.error(f"Invalid JSON received: {msg.data}")
-
         try:
-            await self.js.subscribe(self.subject, cb=message_handler, durable="durable")
-            self.logger.info(f"Subscribed to '{self.subject}' with durable consumer.")
+            await self.js.subscribe(self.subject, cb=callback)
+            self.logger.debug(f"Subscribed to '{self.subject}'")
         except Exception as e:
             self.logger.exception(f"Failed to subscribe: {e}")
+
+    async def subscribe(self, callback, *callback_args):
+        if not self.nc.is_connected:
+            self.logger.error(
+                f"Cannot subscribe to {self.subject}: not connected to NATS."
+            )
+            return
+        try:
+            await self.nc.subscribe(self.subject, cb=callback)
+            self.logger.debug(f"Subscribed to subject '{self.subject}'")
+        except Exception as e:
+            self.logger.exception(f"Failed to subscribe: {e}")
+
+    async def create_streams(self, streams: list):
+        if not self.nc.is_connected:
+            await self.nc.connect(servers=[self.servers])
+
+        js = self.nc.jetstream()
+
+        for stream in streams:
+            try:
+                await js.stream_info(stream)
+                self.logger.debug(f"NATS stream '{stream}' already exists")
+            except NotFoundError:
+                config = StreamConfig(
+                    name=stream,
+                    subjects=[f"{stream}.>"],
+                )
+                try:
+                    await js.add_stream(config)
+                    self.logger.debug(f"Added NATS stream: '{stream}'")
+                except Exception as e:
+                    self.logger.error(f"Failed to add stream '{stream}': {e}")
+
+    async def on_disconnect(self, nc):
+        self.logger.warning("Disconnected from NATS.")
+
+    async def on_reconnect(self, nc):
+        self.logger.info("Reconnected to NATS.")
+
+    async def on_close(self, nc):
+        self.logger.warning("Connection to NATS closed.")
+
+    async def on_error(self, error):
+        self.logger.error(f"A NATS error occurred: {error}")
 
     async def close(self):
         if self.nc.is_connected:

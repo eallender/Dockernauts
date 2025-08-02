@@ -1,5 +1,6 @@
 from pathlib import Path
 
+
 class AppConfig:
     _instance = None
 
@@ -17,10 +18,8 @@ class AppConfig:
 
     def set_project_root_env_var(self) -> str:
         current_file = Path(__file__).resolve()
-        project_root = current_file.parents[1]
+        project_root = current_file.parents[2]
         return str(project_root)
 
     def get_config(self) -> dict:
-        return {
-            "root": self.project_root
-        }
+        return {"root": self.project_root}
