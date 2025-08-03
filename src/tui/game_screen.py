@@ -41,6 +41,10 @@ class SpaceView(Static):
         self.needs_render = True
         self.status_callback = None
         self.planet_click_callback = None
+        
+        # Planet selection for keyboard interaction
+        self.selected_planet = None
+        self.nearby_planets = []
 
     def set_status_callback(self, callback):
         """Set a callback function to update status"""
@@ -54,49 +58,153 @@ class SpaceView(Static):
         # Reduce refresh rate from 30 FPS to 15 FPS for better performance
         self.set_interval(1 / 15, self.refresh_display)
 
-    def on_click(self, event: Click) -> None:
-        """Handle mouse clicks to detect planet interactions"""
-        if not self.planet_click_callback:
-            return
-
-        # Convert screen coordinates to world coordinates
-        world_x = self.offset_x + event.x
-        world_y = self.offset_y + event.y
-
-        clicked_planet = self.get_planet_at_position(world_x, world_y)
-        if clicked_planet:
-            self.planet_click_callback(clicked_planet)
+    # Mouse clicking disabled due to terminal compatibility issues
+    # Use keyboard controls instead: Tab to cycle, E to select nearest, Enter to interact
 
     def get_planet_at_position(self, world_x, world_y):
-        """Check if the given world coordinates are on a planet"""
-        for (px, py), planet in self.planets.items():
-            planet_art = planet["art"]
-            planet_w = max(len(line) for line in planet_art)
-            planet_h = len(planet_art)
+        """Check if the given world coordinates are on a planet with improved collision detection"""
+        for planet_key, planet in self.planets.items():
+            px, py = planet["position"]
+            planet_w = planet["width"]
+            planet_h = planet["height"]
 
-            # Check if click is within planet bounds
-            if px <= world_x < px + planet_w and py <= world_y < py + planet_h:
-                # Check if click is on a non-space character
-                art_x, art_y = world_x - px, world_y - py
-                if 0 <= art_y < len(planet_art) and 0 <= art_x < len(planet_art[art_y]):
-                    if planet_art[art_y][art_x] != " ":
-                        return {
-                            "position": (px, py),
-                            "world_coords": (world_x, world_y),
-                            "art": planet_art,
-                            "type": planet.get("type", "rocky"),
-                            "color": planet.get("color", "white"),
-                            "sector": (
-                                px // self.planet_sector_size,
-                                py // self.planet_sector_size,
-                            ),
-                        }
+            # Use larger bounding box for easier clicking (25% padding)
+            padding = max(2, min(planet_w, planet_h) // 4)
+            
+            # Check if click is within expanded planet bounds
+            if (px - padding <= world_x < px + planet_w + padding and 
+                py - padding <= world_y < py + planet_h + padding):
+                
+                return {
+                    "position": (px, py),
+                    "world_coords": (world_x, world_y),
+                    "art": planet["art"],
+                    "type": planet.get("type", "rocky"),
+                    "color": planet.get("color", "white"),
+                    "sector": planet["sector"],
+                    "name": planet.get("name", "Unknown Planet"),
+                    "key": planet_key,
+                }
         return None
+
+    def get_nearby_planets(self, visible_only=True):
+        """Get planets that are visible on screen or near screen center"""
+        width, height = self.size.width, self.size.height
+        if width <= 0 or height <= 0:
+            return []
+        
+        center_x = self.offset_x + width // 2
+        center_y = self.offset_y + height // 2
+        
+        nearby = []
+        for planet_key, planet in self.planets.items():
+            px, py = planet["position"]
+            planet_w, planet_h = planet["width"], planet["height"]
+            
+            if visible_only:
+                # Check if planet is at least partially visible on screen
+                # Planet is visible if any part overlaps with screen bounds
+                planet_left = px
+                planet_right = px + planet_w
+                planet_top = py
+                planet_bottom = py + planet_h
+                
+                screen_left = self.offset_x
+                screen_right = self.offset_x + width
+                screen_top = self.offset_y
+                screen_bottom = self.offset_y + height
+                
+                # Check for overlap (planet is visible)
+                if (planet_right > screen_left and planet_left < screen_right and
+                    planet_bottom > screen_top and planet_top < screen_bottom):
+                    
+                    # Calculate distance from screen center for sorting
+                    distance = ((px - center_x) ** 2 + (py - center_y) ** 2) ** 0.5
+                    nearby.append({
+                        "key": planet_key,
+                        "distance": distance,
+                        "planet": planet
+                    })
+            else:
+                # Original behavior - distance-based selection
+                distance = ((px - center_x) ** 2 + (py - center_y) ** 2) ** 0.5
+                if distance <= 200:  # max_distance fallback
+                    nearby.append({
+                        "key": planet_key,
+                        "distance": distance,
+                        "planet": planet
+                    })
+        
+        # Sort by distance (closest first)
+        nearby.sort(key=lambda p: p["distance"])
+        return nearby
+
+    def select_nearest_planet(self):
+        """Select the planet nearest to screen center (visible planets only)"""
+        nearby = self.get_nearby_planets(visible_only=True)
+        if nearby:
+            self.selected_planet = nearby[0]["key"]
+            self.needs_render = True
+            return self.planets[self.selected_planet]
+        return None
+
+    def cycle_planet_selection(self, direction=1):
+        """Cycle through visible planets only (direction: 1=next, -1=previous)"""
+        self.nearby_planets = self.get_nearby_planets(visible_only=True)
+        if not self.nearby_planets:
+            self.selected_planet = None
+            return None
+        
+        if self.selected_planet is None:
+            # Select first visible planet
+            self.selected_planet = self.nearby_planets[0]["key"]
+        else:
+            # Find current selection in visible planets and move to next/previous
+            current_index = -1
+            for i, planet_data in enumerate(self.nearby_planets):
+                if planet_data["key"] == self.selected_planet:
+                    current_index = i
+                    break
+            
+            if current_index >= 0:
+                # Current selection is visible, cycle to next/previous
+                new_index = (current_index + direction) % len(self.nearby_planets)
+                self.selected_planet = self.nearby_planets[new_index]["key"]
+            else:
+                # Current selection not visible anymore, select first visible planet
+                self.selected_planet = self.nearby_planets[0]["key"]
+        
+        self.needs_render = True
+        return self.planets[self.selected_planet]
+
+    def interact_with_selected_planet(self):
+        """Interact with the currently selected planet"""
+        if self.selected_planet and self.selected_planet in self.planets:
+            planet = self.planets[self.selected_planet]
+            if self.planet_click_callback:
+                planet_info = {
+                    "position": planet["position"],
+                    "type": planet["type"],
+                    "color": planet["color"],
+                    "sector": planet["sector"],
+                    "name": planet["name"],
+                    "key": self.selected_planet,
+                }
+                self.planet_click_callback(planet_info)
+                return True
+        return False
 
     def pan(self, dx: int, dy: int):
         self.offset_x += dx * 2
         self.offset_y += dy
         self.needs_render = True
+        
+        # Clear selection if currently selected planet is no longer visible
+        if self.selected_planet:
+            visible_planets = self.get_nearby_planets(visible_only=True)
+            visible_keys = [p["key"] for p in visible_planets]
+            if self.selected_planet not in visible_keys:
+                self.selected_planet = None
 
         if self.status_callback:
             self.update_sector_position()
@@ -148,8 +256,15 @@ class SpaceView(Static):
         # Generate and draw planets
         self._populate_visible_planets(ox, oy, width, height)
 
-        for (px, py), planet in self.planets.items():
+        for planet_key, planet in self.planets.items():
+            px, py = planet["position"]
             planet_color = planet.get("color", "white")
+            
+            # Highlight selected planet
+            is_selected = (planet_key == self.selected_planet)
+            if is_selected:
+                planet_color = f"bold bright_{planet_color}"
+            
             for dy, line in enumerate(planet["art"]):
                 for dx, ch in enumerate(line):
                     gx, gy = px + dx, py + dy
@@ -157,6 +272,37 @@ class SpaceView(Static):
                     if 0 <= sx < width and 0 <= sy < height and ch != " ":
                         char_grid[sy][sx] = ch
                         color_grid[sy][sx] = planet_color
+            
+            # Add selection indicator around planet
+            if is_selected:
+                planet_w, planet_h = planet["width"], planet["height"]
+                # Draw bright selection border with corner markers
+                # Top and bottom borders
+                for border_x in range(px - 2, px + planet_w + 2):
+                    for border_y in [py - 2, py + planet_h + 1]:
+                        sx, sy = border_x - ox, border_y - oy
+                        if 0 <= sx < width and 0 <= sy < height:
+                            if char_grid[sy][sx] == " ":
+                                char_grid[sy][sx] = "═"
+                                color_grid[sy][sx] = "bright_cyan"
+                
+                # Left and right borders
+                for border_y in range(py - 2, py + planet_h + 2):
+                    for border_x in [px - 2, px + planet_w + 1]:
+                        sx, sy = border_x - ox, border_y - oy
+                        if 0 <= sx < width and 0 <= sy < height:
+                            if char_grid[sy][sx] == " ":
+                                char_grid[sy][sx] = "║"
+                                color_grid[sy][sx] = "bright_cyan"
+                
+                # Corner markers for extra visibility
+                corners = [(px - 2, py - 2), (px + planet_w + 1, py - 2), 
+                          (px - 2, py + planet_h + 1), (px + planet_w + 1, py + planet_h + 1)]
+                for corner_x, corner_y in corners:
+                    sx, sy = corner_x - ox, corner_y - oy
+                    if 0 <= sx < width and 0 <= sy < height:
+                        char_grid[sy][sx] = "▣"
+                        color_grid[sy][sx] = "bright_magenta"
 
         # Build colored text output
         for row in range(height):
@@ -179,7 +325,8 @@ class SpaceView(Static):
 
         for sx in range(min_sector_x, max_sector_x + 1):
             for sy in range(min_sector_y, max_sector_y + 1):
-                if (sx, sy) not in self.planets:
+                sector_key = f"sector_{sx}_{sy}"
+                if sector_key not in self.planets:
                     rng = random.Random((sx * 99991 + sy * 31337) & 0xFFFFFFFF)
                     # Reduced planet density for better performance and realism
                     if rng.random() < 0.4:
@@ -198,11 +345,16 @@ class SpaceView(Static):
 
                         planet_x = sx * sector_w + rng.randint(0, sector_w - planet_w)
                         planet_y = sy * sector_w + rng.randint(0, sector_w - planet_h)
-                        self.planets[(planet_x, planet_y)] = {
+                        # Store planets using consistent sector-based keys
+                        self.planets[sector_key] = {
                             "art": template,
                             "type": planet_type,
                             "color": planet_info["color"],
                             "name": planet_info["name"],
+                            "position": (planet_x, planet_y),
+                            "sector": (sx, sy),
+                            "width": planet_w,
+                            "height": planet_h,
                         }
 
 
@@ -219,12 +371,14 @@ class StatusBar(Horizontal):
         self.gold_display = Static("Gold: 0", id="gold")
         self.metal_display = Static("Metal: 0", id="metal")
         self.sector_display = Static("Sector: (0,0)", id="sector")
+        self.controls_display = Static("E=Select nearest  Tab=Cycle  Enter=Interact", id="controls")
 
         for display in [
             self.food_display,
             self.gold_display,
             self.metal_display,
             self.sector_display,
+            self.controls_display,
         ]:
             display.styles.height = 1
             display.styles.max_height = 1
@@ -234,6 +388,7 @@ class StatusBar(Horizontal):
         yield self.gold_display
         yield self.metal_display
         yield self.sector_display
+        yield self.controls_display
 
     def on_mount(self):
         self.watch_food(self.food)
@@ -268,6 +423,10 @@ class SpaceScreen(Screen):
         ("down", "pan('down')", "Pan Down"),
         ("left", "pan('left')", "Pan Left"),
         ("right", "pan('right')", "Pan Right"),
+        ("tab", "cycle_planets", "Next Planet"),
+        ("shift+tab", "cycle_planets_reverse", "Previous Planet"),
+        ("e", "select_nearest", "Select Nearest"),
+        ("enter", "interact_planet", "Interact"),
         ("q", "app.pop_screen", "Back"),
     ]
 
@@ -336,3 +495,50 @@ class SpaceScreen(Screen):
                 view.pan(-1, 0)
             case "right":
                 view.pan(1, 0)
+
+    def action_cycle_planets(self) -> None:
+        """Cycle to next planet"""
+        view = self.query_one(SpaceView)
+        planet = view.cycle_planet_selection(1)
+        if planet:
+            self.notify(
+                f"◉ {planet['name']} ({planet['type']}) - Press Enter to interact",
+                title="Planet Selected",
+                timeout=3,
+            )
+        else:
+            self.notify("No planets nearby - Use arrow keys to explore", timeout=2)
+
+    def action_cycle_planets_reverse(self) -> None:
+        """Cycle to previous planet"""
+        view = self.query_one(SpaceView)
+        planet = view.cycle_planet_selection(-1)
+        if planet:
+            self.notify(
+                f"◉ {planet['name']} ({planet['type']}) - Press Enter to interact",
+                title="Planet Selected",
+                timeout=3,
+            )
+        else:
+            self.notify("No planets nearby - Use arrow keys to explore", timeout=2)
+
+    def action_select_nearest(self) -> None:
+        """Select nearest planet to screen center"""
+        view = self.query_one(SpaceView)
+        planet = view.select_nearest_planet()
+        if planet:
+            self.notify(
+                f"◉ {planet['name']} ({planet['type']}) - Press Enter to interact",
+                title="Nearest Planet Found",
+                timeout=3,
+            )
+        else:
+            self.notify("No planets nearby - Pan around to find planets!", timeout=3)
+
+    def action_interact_planet(self) -> None:
+        """Interact with selected planet"""
+        view = self.query_one(SpaceView)
+        if view.interact_with_selected_planet():
+            self.notify("🚀 Interacting with planet...", timeout=2)
+        else:
+            self.notify("No planet selected - Press E to select nearest or Tab to cycle", timeout=3)

@@ -34,8 +34,13 @@ Welcome to Dockernauts! You are a space captain exploring an infinite galaxy fil
   - ← **Left Arrow**: Move view left
   - → **Right Arrow**: Move view right
 
-### Interaction
-- **Mouse Click**: Click on planets to interact with them
+### Planet Interaction
+- **E**: Select nearest visible planet
+- **Tab**: Cycle to next nearby planet
+- **Shift+Tab**: Cycle to previous nearby planet
+- **Enter**: Interact with selected planet
+
+### General Controls
 - **Q**: Return to previous screen/menu
 - **Escape**: Return to previous screen/menu
 
@@ -73,28 +78,34 @@ Manage three key resources displayed in your status bar:
 ## Gameplay Tips
 
 1. **Explore Systematically**: Each sector may contain planets - explore thoroughly
-2. **Click on Planets**: Interact with planets by clicking directly on their ASCII art
-3. **Resource Management**: Keep an eye on your Food, Gold, and Metal levels
-4. **Navigate Efficiently**: Use arrow keys to move quickly across space
-5. **Sector Awareness**: Note your coordinates to remember interesting locations
-6. **Planet Variety**: Different planet types offer different resources and challenges
+2. **Planet Selection**: Use **E** to quickly select the nearest planet, or **Tab** to cycle through visible planets
+3. **Visual Feedback**: Selected planets are highlighted with bright cyan borders and corner markers
+4. **Resource Management**: Keep an eye on your Food, Gold, and Metal levels
+5. **Navigate Efficiently**: Use arrow keys to move quickly across space
+6. **Sector Awareness**: Note your coordinates to remember interesting locations
+7. **Planet Variety**: Different planet types offer different resources and challenges
 
 ## Getting Started
 
 1. From the title screen, select "🚀 START EXPLORING"
 2. Use arrow keys to move around and explore the galaxy
 3. Look for planets in each sector (they appear as detailed ASCII art)
-4. Click on planets to interact with them and gather resources
-5. Monitor your resources in the status bar at the top
-6. Press Q to return to the main menu when done exploring
+4. Press **E** to select the nearest planet, or use **Tab** to cycle through visible planets
+5. Press **Enter** to interact with the selected planet and gather resources
+6. Monitor your resources in the status bar at the top
+7. Press Q to return to the main menu when done exploring
 
 ## Visual Legend
 
 ```
 Space Symbols:
 ✦ · * ⋆     - Stars and stellar objects
-ASCII Art   - Planets (clickable for interaction)
+ASCII Art   - Planets (selectable with E/Tab, interact with Enter)
+═══║║▣      - Cyan selection borders and corner markers around selected planets
 Sectors     - 100x100 coordinate grid system
+
+Status Bar:
+Food: X  Gold: X  Metal: X  Sector: (X,Y)  E=Select nearest  Tab=Cycle  Enter=Interact
 ```
 
 ---
