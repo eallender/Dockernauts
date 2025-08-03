@@ -140,7 +140,9 @@ class SpaceView(Static):
                 seed = (x * 92837111 + y * 689287) & 0xFFFFFFFF
                 star_rng.seed(seed)
                 char_grid[row][col] = (
-                    star_rng.choice(self.star_chars) if star_rng.random() < self.density else " "
+                    star_rng.choice(self.star_chars)
+                    if star_rng.random() < self.density
+                    else " "
                 )
 
         # Generate and draw planets

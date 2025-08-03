@@ -1,4 +1,11 @@
 FROM python:3.11-alpine
 
+COPY pyproject.toml poetry.lock /app/
+WORKDIR /app
 
+RUN pip install poetry
+RUN poetry install
 
+COPY src/ src/
+
+CMD ["poetry", "run", "python", "src/master_station.py"]

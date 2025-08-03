@@ -1,20 +1,25 @@
 import random
 from enum import Enum
+
 # from utils.nats import JetStreamClient
+
 
 class PlanetSize(Enum):
     SMALL = "small"
     MEDIUM = "medium"
     LARGE = "large"
 
-class Planet():
+
+class Planet:
     def __init__(self, name, uuid):
-        PLANET_SIZE_WEIGHTS = [0.4, 0.4, 0.2] # Small: 40%, Medium: 40% Large: 20%
+        PLANET_SIZE_WEIGHTS = [0.4, 0.4, 0.2]  # Small: 40%, Medium: 40% Large: 20%
         self.name = name
         self.uuid = uuid
         self.discovered = False
         self.claimed = False
-        self.size = random.choices(list(PlanetSize), weights=PLANET_SIZE_WEIGHTS, k=1)[0]
+        self.size = random.choices(list(PlanetSize), weights=PLANET_SIZE_WEIGHTS, k=1)[
+            0
+        ]
         self.available_resources = self.__generate_resources()
         self.resource_collection_speed = {"food": 1, "gold": 1, "metal": 1}
 
@@ -26,21 +31,20 @@ class Planet():
 
     # def __start_resource_collectors():
 
-
     def __generate_resources(self) -> dict:
         SMALL_MIN_RESOURCES = 500
-        MEDIUM_MIN_REOURCES = 1000
+        MEDIUM_MIN_RESOURCES = 1000
         LARGE_MIN_RESOURCES = 1500
         LARGE_MAX_RESOURCES = 2000
         match self.size:
             case PlanetSize.SMALL:
-                food = random.randint(SMALL_MIN_RESOURCES, MEDIUM_MIN_REOURCES)
-                gold = random.randint(SMALL_MIN_RESOURCES, MEDIUM_MIN_REOURCES)
-                metal = random.randint(SMALL_MIN_RESOURCES, MEDIUM_MIN_REOURCES)
+                food = random.randint(SMALL_MIN_RESOURCES, MEDIUM_MIN_RESOURCES)
+                gold = random.randint(SMALL_MIN_RESOURCES, MEDIUM_MIN_RESOURCES)
+                metal = random.randint(SMALL_MIN_RESOURCES, MEDIUM_MIN_RESOURCES)
             case PlanetSize.MEDIUM:
-                food = random.randint(MEDIUM_MIN_REOURCES, LARGE_MIN_RESOURCES)
-                gold = random.randint(MEDIUM_MIN_REOURCES, LARGE_MIN_RESOURCES)
-                metal = random.randint(MEDIUM_MIN_REOURCES, LARGE_MIN_RESOURCES)
+                food = random.randint(MEDIUM_MIN_RESOURCES, LARGE_MIN_RESOURCES)
+                gold = random.randint(MEDIUM_MIN_RESOURCES, LARGE_MIN_RESOURCES)
+                metal = random.randint(MEDIUM_MIN_RESOURCES, LARGE_MIN_RESOURCES)
             case PlanetSize.LARGE:
                 food = random.randint(LARGE_MIN_RESOURCES, LARGE_MAX_RESOURCES)
                 gold = random.randint(LARGE_MIN_RESOURCES, LARGE_MAX_RESOURCES)
@@ -50,4 +54,3 @@ class Planet():
             "gold": gold,
             "metal": metal,
         }
-
