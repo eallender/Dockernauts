@@ -51,7 +51,8 @@ class SpaceView(Static):
         self.planet_click_callback = callback
 
     def on_mount(self):
-        self.set_interval(1 / 30, self.refresh_display)
+        # Reduce refresh rate from 30 FPS to 15 FPS for better performance
+        self.set_interval(1 / 15, self.refresh_display)
 
     def on_click(self, event: Click) -> None:
         """Handle mouse clicks to detect planet interactions"""
@@ -130,15 +131,16 @@ class SpaceView(Static):
         char_grid = [[" "] * width for _ in range(height)]
         color_grid = [["#4a9eff"] * width for _ in range(height)]  # Default star color
 
-        # Draw stars first
+        # Draw stars with simple optimization - reuse Random instance
+        star_rng = random.Random()
         for row in range(height):
             y = oy + row
             for col in range(width):
                 x = ox + col
                 seed = (x * 92837111 + y * 689287) & 0xFFFFFFFF
-                rng = random.Random(seed)
+                star_rng.seed(seed)
                 char_grid[row][col] = (
-                    rng.choice(self.star_chars) if rng.random() < self.density else " "
+                    star_rng.choice(self.star_chars) if star_rng.random() < self.density else " "
                 )
 
         # Generate and draw planets
@@ -177,7 +179,8 @@ class SpaceView(Static):
             for sy in range(min_sector_y, max_sector_y + 1):
                 if (sx, sy) not in self.planets:
                     rng = random.Random((sx * 99991 + sy * 31337) & 0xFFFFFFFF)
-                    if rng.random() < 1:
+                    # Reduced planet density for better performance and realism
+                    if rng.random() < 0.4:
                         template = rng.choice(self.planet_templates)
                         planet_w = max(len(line) for line in template)
                         planet_h = len(template)
