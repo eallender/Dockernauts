@@ -3,13 +3,15 @@ import random
 
 from rich.text import Text
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal
+from textual.containers import Container, Horizontal, Vertical
 from textual.events import Click
 from textual.reactive import reactive
 from textual.screen import Screen
 from textual.widgets import Static
 
 from tui.assets.planet_templates import PLANET_TEMPLATES
+from tui.planet_status import PlanetStatusWindow
+from tui.planet_upgrade_panel import PlanetUpgradePanel, UpgradeRequested
 from utils.config import AppConfig
 from utils.logger import Logger
 
@@ -371,7 +373,7 @@ class StatusBar(Horizontal):
         self.gold_display = Static("Gold: 0", id="gold")
         self.metal_display = Static("Metal: 0", id="metal")
         self.sector_display = Static("Sector: (0,0)", id="sector")
-        self.controls_display = Static("E=Select nearest  Tab=Cycle  Enter=Interact", id="controls")
+        self.controls_display = Static("Tab=Planets  Arrows=Pan/Navigate  E=Toggle  Enter=Upgrade", id="controls")
 
         for display in [
             self.food_display,
@@ -419,14 +421,14 @@ class SpaceScreen(Screen):
     CSS_PATH = f"{CONFIG.get('root')}/static/screens/game_screen.css"
 
     BINDINGS = [
-        ("up", "pan('up')", "Pan Up"),
-        ("down", "pan('down')", "Pan Down"),
+        ("up", "pan('up')", "Pan Up / Previous Upgrade"),
+        ("down", "pan('down')", "Pan Down / Next Upgrade"),
         ("left", "pan('left')", "Pan Left"),
         ("right", "pan('right')", "Pan Right"),
-        ("tab", "cycle_planets", "Next Planet"),
-        ("shift+tab", "cycle_planets_reverse", "Previous Planet"),
-        ("e", "select_nearest", "Select Nearest"),
-        ("enter", "interact_planet", "Interact"),
+        ("tab", "handle_tab", "Next Planet"),
+        ("shift+tab", "handle_shift_tab", "Previous Planet"),
+        ("e", "toggle_info_panel", "Toggle Info Panel"),
+        ("enter", "handle_enter", "Activate Upgrade Button"),
         ("q", "app.pop_screen", "Back"),
     ]
 
@@ -434,12 +436,19 @@ class SpaceScreen(Screen):
         super().__init__(**kwargs)
         self.nats_client = nats_client
         self.latest_game_state = {}
+        self.debug_mode = CONFIG.get("debug_mode", False)
 
     def compose(self):
         status_bar = StatusBar()
         status_bar.id = "status-bar"
         yield status_bar
+        
+        # Create main space view that fills the screen
         yield Container(SpaceView(), id="space-container")
+        
+        # Add floating status window and upgrade panel on top
+        yield PlanetStatusWindow()
+        yield PlanetUpgradePanel()
 
     def on_mount(self) -> None:
         space_view = self.query_one(SpaceView)
@@ -447,10 +456,18 @@ class SpaceScreen(Screen):
         space_view.styles.height = "100%"
 
         self.status = self.query_one(StatusBar)
+        self.planet_status = self.query_one(PlanetStatusWindow)
+        self.upgrade_panel = self.query_one(PlanetUpgradePanel)
+        
         space_view.set_status_callback(self.update_sector_from_space_view)
         space_view.set_planet_click_callback(self.on_planet_clicked)
         self.set_interval(1, self.update_status)
         space_view.update_sector_position()
+
+    def debug_notify(self, message, title=None, timeout=2):
+        """Only show notification if debug mode is enabled"""
+        if self.debug_mode:
+            self.notify(message, title=title, timeout=timeout)
 
     def on_planet_clicked(self, planet_info):
         """Handle planet click events"""
@@ -458,10 +475,13 @@ class SpaceScreen(Screen):
         sector = planet_info["sector"]
         planet_type = planet_info.get("type", "Unknown")
 
-        self.notify(
-            f"Clicked {planet_type} planet at ({px}, {py}) in sector {sector}",
+        # Show planet status window with detailed information
+        self.planet_status.show_planet_info(planet_info)
+
+        self.debug_notify(
+            f"Selected {planet_type} planet at ({px}, {py}) in sector {sector}",
             title="Planet Selected",
-            timeout=3,
+            timeout=2,
         )
 
     def update_sector_from_space_view(self, sector_x, sector_y):
@@ -485,6 +505,19 @@ class SpaceScreen(Screen):
         self.status.metal = resources.get("metal", 0)
 
     def action_pan(self, direction: str) -> None:
+        # If upgrade panel is open, use up/down arrows for button navigation instead of panning
+        if self.upgrade_panel.visible:
+            if direction == "up":
+                self.upgrade_panel.cycle_button_focus(-1)  # Previous button
+                return
+            elif direction == "down":
+                self.upgrade_panel.cycle_button_focus(1)   # Next button
+                return
+            # Left/Right still disabled when upgrade panel is open
+            elif direction in ["left", "right"]:
+                return  # Silently ignore left/right when upgrade panel is open
+        
+        # Normal panning when upgrade panel is not visible
         view = self.query_one(SpaceView)
         match direction:
             case "up":
@@ -495,50 +528,162 @@ class SpaceScreen(Screen):
                 view.pan(-1, 0)
             case "right":
                 view.pan(1, 0)
+        
+        # Hide status window if currently selected planet is no longer visible
+        if view.selected_planet is None:
+            self.planet_status.hide_status()
+            self.upgrade_panel.hide_panel()
 
     def action_cycle_planets(self) -> None:
-        """Cycle to next planet"""
+        """Select closest planet first, then cycle through visible planets"""
         view = self.query_one(SpaceView)
-        planet = view.cycle_planet_selection(1)
+        
+        # If no planet is selected, select the closest one
+        if view.selected_planet is None:
+            planet = view.select_nearest_planet()
+        else:
+            # If a planet is already selected, cycle to the next one
+            planet = view.cycle_planet_selection(1)
+        
         if planet:
-            self.notify(
-                f"◉ {planet['name']} ({planet['type']}) - Press Enter to interact",
+            # Create planet_info dict for status window
+            planet_info = {
+                "position": planet["position"],
+                "type": planet["type"],
+                "color": planet["color"],
+                "sector": planet["sector"],
+                "name": planet["name"],
+                "key": view.selected_planet,
+            }
+            # Show both info and upgrade panels when cycling planets (preserve button focus)
+            self.planet_status.show_planet_info(planet_info)
+            self.upgrade_panel.show_panel(planet_info, preserve_focus=True)
+            
+            self.debug_notify(
+                f"◉ {planet['name']} ({planet['type']}) - Press E to toggle info/upgrades",
                 title="Planet Selected",
                 timeout=3,
             )
         else:
-            self.notify("No planets nearby - Use arrow keys to explore", timeout=2)
+            self.planet_status.hide_status()
+            self.debug_notify("No planets nearby - Use arrow keys to explore", timeout=2)
 
     def action_cycle_planets_reverse(self) -> None:
         """Cycle to previous planet"""
         view = self.query_one(SpaceView)
-        planet = view.cycle_planet_selection(-1)
+        
+        # If no planet is selected, select the closest one
+        if view.selected_planet is None:
+            planet = view.select_nearest_planet()
+        else:
+            # If a planet is already selected, cycle to the previous one
+            planet = view.cycle_planet_selection(-1)
+        
         if planet:
-            self.notify(
-                f"◉ {planet['name']} ({planet['type']}) - Press Enter to interact",
+            # Create planet_info dict for status window
+            planet_info = {
+                "position": planet["position"],
+                "type": planet["type"],
+                "color": planet["color"],
+                "sector": planet["sector"],
+                "name": planet["name"],
+                "key": view.selected_planet,
+            }
+            # Show both info and upgrade panels when cycling planets (preserve button focus)
+            self.planet_status.show_planet_info(planet_info)
+            self.upgrade_panel.show_panel(planet_info, preserve_focus=True)
+            
+            self.debug_notify(
+                f"◉ {planet['name']} ({planet['type']}) - Press E to toggle info/upgrades",
                 title="Planet Selected",
                 timeout=3,
             )
         else:
-            self.notify("No planets nearby - Use arrow keys to explore", timeout=2)
+            self.planet_status.hide_status()
+            self.debug_notify("No planets nearby - Use arrow keys to explore", timeout=2)
 
-    def action_select_nearest(self) -> None:
-        """Select nearest planet to screen center"""
+    def action_toggle_info_panel(self) -> None:
+        """Toggle info panel for currently selected planet"""
         view = self.query_one(SpaceView)
-        planet = view.select_nearest_planet()
-        if planet:
-            self.notify(
-                f"◉ {planet['name']} ({planet['type']}) - Press Enter to interact",
-                title="Nearest Planet Found",
-                timeout=3,
-            )
+        
+        if view.selected_planet is None:
+            self.debug_notify("No planet selected - Press Tab to select one", timeout=2)
+            return
+        
+        # Check if panels are currently visible (both should be in sync)
+        panels_visible = self.planet_status.visible and self.upgrade_panel.visible
+        
+        if panels_visible:
+            # Hide both panels
+            self.planet_status.hide_status()
+            self.upgrade_panel.hide_panel()
+            self.debug_notify("Panels hidden - Tab to select planets", timeout=1)
         else:
-            self.notify("No planets nearby - Pan around to find planets!", timeout=3)
+            # Show both info and upgrade panels for selected planet
+            planet = view.planets.get(view.selected_planet)
+            if planet:
+                planet_info = {
+                    "position": planet["position"],
+                    "type": planet["type"],
+                    "color": planet["color"],
+                    "sector": planet["sector"],
+                    "name": planet["name"],
+                    "key": view.selected_planet,
+                }
+                
+                # Force both panels to hide first, then show both
+                self.planet_status.hide_status()
+                self.upgrade_panel.hide_panel()
+                
+                # Now show both panels (reset focus when first opening with E key)
+                self.planet_status.show_planet_info(planet_info)
+                self.upgrade_panel.show_panel(planet_info, preserve_focus=False)
+                
+                # Verify both are actually visible
+                if self.planet_status.visible and self.upgrade_panel.visible:
+                    self.debug_notify("Panels shown - Tab/Enter to navigate/upgrade", timeout=2)
+                else:
+                    self.debug_notify("Panel sync issue - trying again", timeout=1)
+                    # Try once more
+                    self.planet_status.show_planet_info(planet_info)
+                    self.upgrade_panel.show_panel(planet_info, preserve_focus=False)
+            else:
+                self.notify("Selected planet no longer available", timeout=2)
 
-    def action_interact_planet(self) -> None:
-        """Interact with selected planet"""
-        view = self.query_one(SpaceView)
-        if view.interact_with_selected_planet():
-            self.notify("🚀 Interacting with planet...", timeout=2)
+    def action_handle_tab(self) -> None:
+        """Handle Tab key - cycle planets (arrow keys handle upgrade buttons when panel is open)"""
+        # Always cycle planets with Tab - arrow keys handle upgrade button navigation
+        self.action_cycle_planets()
+
+    def action_handle_shift_tab(self) -> None:
+        """Handle Shift+Tab key - cycle planets backwards (arrow keys handle upgrade buttons when panel is open)"""
+        # Always cycle planets with Shift+Tab - arrow keys handle upgrade button navigation
+        self.action_cycle_planets_reverse()
+
+    def action_handle_enter(self) -> None:
+        """Handle Enter key - activate upgrade button if panel is open"""
+        if self.upgrade_panel.visible:
+            upgrade_info = self.upgrade_panel.activate_focused_button()
+            if upgrade_info:
+                self.process_upgrade_request(upgrade_info)
         else:
-            self.notify("No planet selected - Press E to select nearest or Tab to cycle", timeout=3)
+            self.debug_notify("Press E to open upgrade panel for selected planet", timeout=2)
+
+    def process_upgrade_request(self, upgrade_info):
+        """Process an upgrade request"""
+        resource_type = upgrade_info["resource_type"]
+        cost = upgrade_info["cost"]
+        planet_name = upgrade_info["planet_name"]
+        
+        # TODO: Implement actual upgrade logic with resource checking
+        # For now, just show notification (keep this one as it's actual gameplay feedback)
+        self.notify(
+            f"Upgrading {resource_type} on {planet_name} for {cost} gold",
+            title="Upgrade Requested", 
+            timeout=3,
+        )
+
+    def on_upgrade_requested(self, message: UpgradeRequested) -> None:
+        """Handle custom upgrade requested message"""
+        self.process_upgrade_request(message.upgrade_info)
+

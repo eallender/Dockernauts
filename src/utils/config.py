@@ -22,4 +22,8 @@ class AppConfig:
         return str(project_root)
 
     def get_config(self) -> dict:
-        return {"root": self.project_root}
+        return {
+            "root": self.project_root,
+            # Set to True to enable debug notifications (planet selection, panel toggles, etc.)
+            "debug_mode": False
+        }
