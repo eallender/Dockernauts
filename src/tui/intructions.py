@@ -37,8 +37,8 @@ Welcome to Dockernauts! You are a space captain exploring an infinite galaxy fil
 ### Planet Interaction
 - **Tab**: Select closest planet or cycle to next nearby planet
 - **Shift+Tab**: Cycle to previous nearby planet
-- **E**: Toggle planet info and upgrade panels
-- **Enter**: Activate upgrade button (when upgrade panel is open)
+- **E**: Toggle planet info panels (shows claim panel for unclaimed planets, upgrade panel for claimed planets)
+- **Enter**: Claim planet (when claim panel is open) OR activate upgrade button (when upgrade panel is open)
 
 ### General Controls
 - **Q**: Return to previous screen/menu
@@ -71,14 +71,24 @@ Manage three key resources displayed in your status bar:
 - **Gold**: Universal currency for trading and upgrades  
 - **Metal**: Raw materials for additional upgrades
 
-### Planet Upgrades
-When you select a planet with **Tab**, both an info panel and upgrade panel appear automatically:
+### Planet Claiming & Upgrades
+When you select a planet with **Tab**, an info panel and either a claim panel or upgrade panel appear:
 
-- **Info Panel**: Shows planet details (type, size, coordinates, resources, status)
+**For Unclaimed Planets:**
+- **Info Panel**: Shows planet details (type, size, coordinates, distance from origin)
+- **Claim Panel**: Shows the cost to claim the planet (based on distance and size)
+- **Claiming**: Press **Enter** to claim the planet (costs gold, deducted from your resources)
+- **Distance Pricing**: Planets farther from origin (0,0) cost more to claim
+- **Size Multiplier**: Small=1x, Medium=1.5x, Large=2x cost multiplier
+
+**For Claimed Planets:**
+- **Info Panel**: Shows planet details and claimed status
 - **Upgrade Panel**: Contains buttons to upgrade resource production rates
 - **Navigation**: Use **Up/Down arrows** to cycle through upgrade buttons
 - **Activation**: Press **Enter** to purchase the selected upgrade (costs gold)
-- **Panel Toggle**: Press **E** to hide/show both panels
+
+**General:**
+- **Panel Toggle**: Press **E** to hide/show panels
 
 ### Status Information
 - **Sector Coordinates**: Shows your current galactic position
@@ -89,24 +99,27 @@ When you select a planet with **Tab**, both an info panel and upgrade panel appe
 1. **Explore Systematically**: Each sector may contain planets - explore thoroughly
 2. **Planet Selection**: Use **Tab** to select the closest planet, then **Tab** again to cycle through visible planets
 3. **Visual Feedback**: Selected planets are highlighted with bright cyan borders and corner markers
-4. **Planet Management**: Press **E** to view planet details and upgrade options
-5. **Upgrade Strategy**: Use gold to upgrade planet resource production rates
-6. **Resource Management**: Keep an eye on your Food, Gold, and Metal levels
-7. **Navigate Efficiently**: Use arrow keys to move quickly across space
-8. **Sector Awareness**: Note your coordinates to remember interesting locations
-9. **Planet Variety**: Different planet types offer different resources and challenges
+4. **Planet Management**: Press **E** to view planet details and claiming/upgrade options
+5. **Claiming Strategy**: Start by claiming planets closer to origin (0,0) as they're cheaper, then expand outward
+6. **Size Matters**: Small planets are cheaper to claim but may have fewer resources
+7. **Gold Management**: Balance between claiming new planets and upgrading existing ones
+8. **Resource Management**: Keep an eye on your Food, Gold, and Metal levels
+9. **Navigate Efficiently**: Use arrow keys to move quickly across space
+10. **Sector Awareness**: Note your coordinates to remember interesting locations
+11. **Planet Variety**: Different planet types offer different resources and challenges
 
 ## Getting Started
 
 1. From the title screen, select "🚀 START EXPLORING"
 2. Use arrow keys to move around and explore the galaxy
 3. Look for planets in each sector (they appear as detailed ASCII art)
-4. Press **Tab** to select the closest planet (both info and upgrade panels appear automatically)
-5. Continue pressing **Tab** to cycle through visible planets
-6. Use **Up/Down arrows** to navigate upgrade buttons, **Enter** to purchase upgrades
-7. Monitor your resources in the status bar at the top
-8. Press **E** to hide panels and continue exploring, or keep them open while planet hopping
-9. Press Q to return to the main menu when done exploring
+4. Press **Tab** to select the closest planet (info panel and claim panel appear for unclaimed planets)
+5. Press **Enter** to claim your first planet near origin (should cost around 100 gold)
+6. After claiming, the upgrade panel will appear - use **Up/Down arrows** to navigate upgrade buttons
+7. Continue pressing **Tab** to cycle through visible planets and claim more
+8. Monitor your resources in the status bar at the top
+9. Press **E** to hide panels and continue exploring, or keep them open while planet hopping
+10. Press Q to return to the main menu when done exploring
 
 ## Visual Legend
 
@@ -118,7 +131,7 @@ ASCII Art   - Planets (selectable with E/Tab, interact with Enter)
 Sectors     - 100x100 coordinate grid system
 
 Status Bar:
-Food: X  Gold: X  Metal: X  Sector: (X,Y)  Tab=Planets  Arrows=Pan/Navigate  E=Toggle  Enter=Upgrade
+Food: X  Gold: X  Metal: X  Sector: (X,Y)  Tab=Planets  Arrows=Pan/Navigate  E=Toggle  Enter=Claim/Upgrade
 ```
 
 ---

@@ -133,3 +133,66 @@ UpgradeButton.focused {
     text-align: center;
     text-style: italic;
 }
+
+/* Planet Claim Panel - Same position and size as upgrade panel */
+PlanetClaimPanel {
+    width: 35;
+    height: auto;
+    background: #1a1a2e;
+    border: solid #ffaa00;
+    padding: 1;
+    margin: 1;
+    display: none;
+    dock: right;
+    layer: overlay;
+    offset: 0 12;
+}
+
+.claim-panel-title {
+    text-style: bold;
+    color: #ffaa00;
+    text-align: center;
+}
+
+.claim-divider {
+    color: #ffaa00;
+}
+
+.claim-info,
+.claim-distance {
+    color: #cccccc;
+    text-align: left;
+}
+
+.claim-cost {
+    color: #ffaa00;
+    text-align: center;
+    text-style: bold;
+}
+
+.claim-button-container {
+    height: auto;
+    width: 100%;
+}
+
+ClaimButton {
+    width: 100%;
+    height: 3;
+    margin: 1 0;
+    background: #4a4a00;
+    color: #ffffff;
+    border: solid #ffaa00;
+    text-style: bold;
+}
+
+ClaimButton:hover {
+    background: #ffaa00;
+    color: #000000;
+    border: solid #ffffff;
+}
+
+.claim-instructions {
+    color: #cccccc;
+    text-align: center;
+    text-style: italic;
+}

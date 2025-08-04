@@ -16,10 +16,14 @@ class PlanetSize(Enum):
 
 
 class Planet:
-    def __init__(self, name, uuid, nats_address: str = "nats://localhost:4222"):
+    def __init__(
+        self, name, uuid, x=0, y=0, nats_address: str = "nats://localhost:4222"
+    ):
         PLANET_SIZE_WEIGHTS = [0.4, 0.4, 0.2]  # Small: 40%, Medium: 40% Large: 20%
         self.name = name
         self.uuid = uuid
+        self.x = x  # World coordinates for distance calculation
+        self.y = y
         self.discovered = False
         self.claimed = False
         self.size = random.choices(list(PlanetSize), weights=PLANET_SIZE_WEIGHTS, k=1)[
@@ -168,6 +172,40 @@ class Planet:
             return True
         return False
 
+    def calculate_claim_cost(self) -> int:
+        """Calculate the cost to claim this planet based on distance from origin (0,0)"""
+        import math
+
+        # Calculate distance from origin
+        distance = math.sqrt(self.x**2 + self.y**2)
+
+        # Base claim cost starts at 100 gold for planets at origin
+        base_cost = 100
+
+        # Cost increases with distance - every 100 units adds 50 gold
+        # Plus size multiplier: small=1x, medium=1.5x, large=2x
+        size_multiplier = {
+            PlanetSize.SMALL: 1.0,
+            PlanetSize.MEDIUM: 1.5,
+            PlanetSize.LARGE: 2.0,
+        }
+
+        distance_cost = int(distance / 100) * 50
+        total_cost = int((base_cost + distance_cost) * size_multiplier[self.size])
+
+        return max(total_cost, base_cost)  # Minimum cost is base_cost
+
+    def claim_planet(self, cost_paid: int) -> bool:
+        """Attempt to claim the planet if sufficient cost is paid"""
+        required_cost = self.calculate_claim_cost()
+
+        if cost_paid >= required_cost and not self.claimed:
+            self.claimed = True
+            self.logger.info(f"Planet {self.name} claimed for {cost_paid} gold")
+            return True
+
+        return False
+
     def get_planet_status(self) -> Dict:
         """Get current planet status for UI display"""
         return {
@@ -176,6 +214,9 @@ class Planet:
             "size": self.size.value,
             "discovered": self.discovered,
             "claimed": self.claimed,
+            "x": self.x,
+            "y": self.y,
+            "claim_cost": self.calculate_claim_cost(),
             "available_resources": self.available_resources.copy(),
             "collection_speed": self.resource_collection_speed.copy(),
             "upgrade_levels": self.upgrade_levels.copy(),

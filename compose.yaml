@@ -38,8 +38,16 @@ services:
       context: .
       dockerfile: ./docker/dockerfile.planet
     image: dockernauts-planet:latest
-    profiles:
-      - buildonly
+    container_name: dockernauts-planet-home
+    network_mode: host
+    command: [
+      "home-planet",
+      "home-planet",
+    ]
+    depends_on:
+      - nats
+      - master-station
+    
 
 networks:
   dockernauts:

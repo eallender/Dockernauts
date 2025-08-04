@@ -9,7 +9,9 @@ from textual.reactive import reactive
 from textual.screen import Screen
 from textual.widgets import Static
 
+from planet import Planet
 from tui.assets.planet_templates import PLANET_TEMPLATES
+from tui.planet_claim_panel import ClaimRequested, PlanetClaimPanel
 from tui.planet_status import PlanetStatusWindow
 from tui.planet_upgrade_panel import PlanetUpgradePanel, UpgradeRequested
 from utils.config import AppConfig
@@ -37,13 +39,14 @@ class SpaceView(Static):
         self.offset_y = 0
         self.density = 0.03
         self.star_chars = ["✦", ".", "·", " "]
-        self.planets = {}
+        self.planets = {}  # Visual planet data
+        self.planet_instances = {}  # Actual Planet instances
         self.planet_templates = PLANET_TEMPLATES
         self.planet_sector_size = 100
         self.needs_render = True
         self.status_callback = None
         self.planet_click_callback = None
-        
+
         # Planet selection for keyboard interaction
         self.selected_planet = None
         self.nearby_planets = []
@@ -72,11 +75,13 @@ class SpaceView(Static):
 
             # Use larger bounding box for easier clicking (25% padding)
             padding = max(2, min(planet_w, planet_h) // 4)
-            
+
             # Check if click is within expanded planet bounds
-            if (px - padding <= world_x < px + planet_w + padding and 
-                py - padding <= world_y < py + planet_h + padding):
-                
+            if (
+                px - padding <= world_x < px + planet_w + padding
+                and py - padding <= world_y < py + planet_h + padding
+            ):
+
                 return {
                     "position": (px, py),
                     "world_coords": (world_x, world_y),
@@ -94,15 +99,15 @@ class SpaceView(Static):
         width, height = self.size.width, self.size.height
         if width <= 0 or height <= 0:
             return []
-        
+
         center_x = self.offset_x + width // 2
         center_y = self.offset_y + height // 2
-        
+
         nearby = []
         for planet_key, planet in self.planets.items():
             px, py = planet["position"]
             planet_w, planet_h = planet["width"], planet["height"]
-            
+
             if visible_only:
                 # Check if planet is at least partially visible on screen
                 # Planet is visible if any part overlaps with screen bounds
@@ -110,33 +115,33 @@ class SpaceView(Static):
                 planet_right = px + planet_w
                 planet_top = py
                 planet_bottom = py + planet_h
-                
+
                 screen_left = self.offset_x
                 screen_right = self.offset_x + width
                 screen_top = self.offset_y
                 screen_bottom = self.offset_y + height
-                
+
                 # Check for overlap (planet is visible)
-                if (planet_right > screen_left and planet_left < screen_right and
-                    planet_bottom > screen_top and planet_top < screen_bottom):
-                    
+                if (
+                    planet_right > screen_left
+                    and planet_left < screen_right
+                    and planet_bottom > screen_top
+                    and planet_top < screen_bottom
+                ):
+
                     # Calculate distance from screen center for sorting
                     distance = ((px - center_x) ** 2 + (py - center_y) ** 2) ** 0.5
-                    nearby.append({
-                        "key": planet_key,
-                        "distance": distance,
-                        "planet": planet
-                    })
+                    nearby.append(
+                        {"key": planet_key, "distance": distance, "planet": planet}
+                    )
             else:
                 # Original behavior - distance-based selection
                 distance = ((px - center_x) ** 2 + (py - center_y) ** 2) ** 0.5
                 if distance <= 200:  # max_distance fallback
-                    nearby.append({
-                        "key": planet_key,
-                        "distance": distance,
-                        "planet": planet
-                    })
-        
+                    nearby.append(
+                        {"key": planet_key, "distance": distance, "planet": planet}
+                    )
+
         # Sort by distance (closest first)
         nearby.sort(key=lambda p: p["distance"])
         return nearby
@@ -156,7 +161,7 @@ class SpaceView(Static):
         if not self.nearby_planets:
             self.selected_planet = None
             return None
-        
+
         if self.selected_planet is None:
             # Select first visible planet
             self.selected_planet = self.nearby_planets[0]["key"]
@@ -167,7 +172,7 @@ class SpaceView(Static):
                 if planet_data["key"] == self.selected_planet:
                     current_index = i
                     break
-            
+
             if current_index >= 0:
                 # Current selection is visible, cycle to next/previous
                 new_index = (current_index + direction) % len(self.nearby_planets)
@@ -175,7 +180,7 @@ class SpaceView(Static):
             else:
                 # Current selection not visible anymore, select first visible planet
                 self.selected_planet = self.nearby_planets[0]["key"]
-        
+
         self.needs_render = True
         return self.planets[self.selected_planet]
 
@@ -200,7 +205,7 @@ class SpaceView(Static):
         self.offset_x += dx * 2
         self.offset_y += dy
         self.needs_render = True
-        
+
         # Clear selection if currently selected planet is no longer visible
         if self.selected_planet:
             visible_planets = self.get_nearby_planets(visible_only=True)
@@ -261,12 +266,24 @@ class SpaceView(Static):
         for planet_key, planet in self.planets.items():
             px, py = planet["position"]
             planet_color = planet.get("color", "white")
-            
+
             # Highlight selected planet
-            is_selected = (planet_key == self.selected_planet)
+            is_selected = planet_key == self.selected_planet
             if is_selected:
-                planet_color = f"bold bright_{planet_color}"
-            
+                # Map colors to valid bright variants
+                color_mapping = {
+                    "yellow": "bright_yellow",
+                    "blue": "bright_blue",
+                    "green": "bright_green",
+                    "cyan": "bright_cyan",
+                    "red": "bright_red",
+                    "purple": "magenta",  # purple -> magenta for terminal compatibility
+                    "white": "bright_white",
+                    "magenta": "bright_magenta",
+                }
+                mapped_color = color_mapping.get(planet_color, planet_color)
+                planet_color = f"bold {mapped_color}"
+
             for dy, line in enumerate(planet["art"]):
                 for dx, ch in enumerate(line):
                     gx, gy = px + dx, py + dy
@@ -274,7 +291,7 @@ class SpaceView(Static):
                     if 0 <= sx < width and 0 <= sy < height and ch != " ":
                         char_grid[sy][sx] = ch
                         color_grid[sy][sx] = planet_color
-            
+
             # Add selection indicator around planet
             if is_selected:
                 planet_w, planet_h = planet["width"], planet["height"]
@@ -287,7 +304,7 @@ class SpaceView(Static):
                             if char_grid[sy][sx] == " ":
                                 char_grid[sy][sx] = "═"
                                 color_grid[sy][sx] = "bright_cyan"
-                
+
                 # Left and right borders
                 for border_y in range(py - 2, py + planet_h + 2):
                     for border_x in [px - 2, px + planet_w + 1]:
@@ -296,10 +313,14 @@ class SpaceView(Static):
                             if char_grid[sy][sx] == " ":
                                 char_grid[sy][sx] = "║"
                                 color_grid[sy][sx] = "bright_cyan"
-                
+
                 # Corner markers for extra visibility
-                corners = [(px - 2, py - 2), (px + planet_w + 1, py - 2), 
-                          (px - 2, py + planet_h + 1), (px + planet_w + 1, py + planet_h + 1)]
+                corners = [
+                    (px - 2, py - 2),
+                    (px + planet_w + 1, py - 2),
+                    (px - 2, py + planet_h + 1),
+                    (px + planet_w + 1, py + planet_h + 1),
+                ]
                 for corner_x, corner_y in corners:
                     sx, sy = corner_x - ox, corner_y - oy
                     if 0 <= sx < width and 0 <= sy < height:
@@ -347,7 +368,16 @@ class SpaceView(Static):
 
                         planet_x = sx * sector_w + rng.randint(0, sector_w - planet_w)
                         planet_y = sy * sector_w + rng.randint(0, sector_w - planet_h)
-                        # Store planets using consistent sector-based keys
+
+                        # Create actual Planet instance
+                        planet_instance = Planet(
+                            name=planet_info["name"],
+                            uuid=f"planet_{sx}_{sy}",
+                            x=planet_x,
+                            y=planet_y,
+                        )
+
+                        # Store both visual data and Planet instance
                         self.planets[sector_key] = {
                             "art": template,
                             "type": planet_type,
@@ -358,6 +388,7 @@ class SpaceView(Static):
                             "width": planet_w,
                             "height": planet_h,
                         }
+                        self.planet_instances[sector_key] = planet_instance
 
 
 class StatusBar(Horizontal):
@@ -373,7 +404,9 @@ class StatusBar(Horizontal):
         self.gold_display = Static("Gold: 0", id="gold")
         self.metal_display = Static("Metal: 0", id="metal")
         self.sector_display = Static("Sector: (0,0)", id="sector")
-        self.controls_display = Static("Tab=Planets  Arrows=Pan/Navigate  E=Toggle  Enter=Upgrade", id="controls")
+        self.controls_display = Static(
+            "Tab=Planets  Arrows=Pan/Navigate  E=Toggle  Enter=Claim/Upgrade", id="controls"
+        )
 
         for display in [
             self.food_display,
@@ -442,13 +475,14 @@ class SpaceScreen(Screen):
         status_bar = StatusBar()
         status_bar.id = "status-bar"
         yield status_bar
-        
+
         # Create main space view that fills the screen
         yield Container(SpaceView(), id="space-container")
-        
-        # Add floating status window and upgrade panel on top
+
+        # Add floating status window, upgrade panel, and claim panel on top
         yield PlanetStatusWindow()
         yield PlanetUpgradePanel()
+        yield PlanetClaimPanel()
 
     def on_mount(self) -> None:
         space_view = self.query_one(SpaceView)
@@ -458,7 +492,8 @@ class SpaceScreen(Screen):
         self.status = self.query_one(StatusBar)
         self.planet_status = self.query_one(PlanetStatusWindow)
         self.upgrade_panel = self.query_one(PlanetUpgradePanel)
-        
+        self.claim_panel = self.query_one(PlanetClaimPanel)
+
         space_view.set_status_callback(self.update_sector_from_space_view)
         space_view.set_planet_click_callback(self.on_planet_clicked)
         self.set_interval(1, self.update_status)
@@ -511,13 +546,17 @@ class SpaceScreen(Screen):
                 self.upgrade_panel.cycle_button_focus(-1)  # Previous button
                 return
             elif direction == "down":
-                self.upgrade_panel.cycle_button_focus(1)   # Next button
+                self.upgrade_panel.cycle_button_focus(1)  # Next button
                 return
             # Left/Right still disabled when upgrade panel is open
             elif direction in ["left", "right"]:
                 return  # Silently ignore left/right when upgrade panel is open
-        
-        # Normal panning when upgrade panel is not visible
+
+        # If claim panel is open, disable all arrow keys (claim has only one button)
+        if self.claim_panel.visible:
+            return  # Silently ignore all directions when claim panel is open
+
+        # Normal panning when no panels are visible
         view = self.query_one(SpaceView)
         match direction:
             case "up":
@@ -528,23 +567,24 @@ class SpaceScreen(Screen):
                 view.pan(-1, 0)
             case "right":
                 view.pan(1, 0)
-        
+
         # Hide status window if currently selected planet is no longer visible
         if view.selected_planet is None:
             self.planet_status.hide_status()
             self.upgrade_panel.hide_panel()
+            self.claim_panel.hide_panel()
 
     def action_cycle_planets(self) -> None:
         """Select closest planet first, then cycle through visible planets"""
         view = self.query_one(SpaceView)
-        
+
         # If no planet is selected, select the closest one
         if view.selected_planet is None:
             planet = view.select_nearest_planet()
         else:
             # If a planet is already selected, cycle to the next one
             planet = view.cycle_planet_selection(1)
-        
+
         if planet:
             # Create planet_info dict for status window
             planet_info = {
@@ -555,30 +595,43 @@ class SpaceScreen(Screen):
                 "name": planet["name"],
                 "key": view.selected_planet,
             }
-            # Show both info and upgrade panels when cycling planets (preserve button focus)
+            # Show info panel and appropriate interaction panel based on claimed status
+            planet_instance = view.planet_instances.get(view.selected_planet)
             self.planet_status.show_planet_info(planet_info)
-            self.upgrade_panel.show_panel(planet_info, preserve_focus=True)
-            
+
+            if planet_instance and planet_instance.claimed:
+                self.upgrade_panel.show_panel(
+                    planet_info, planet_instance, preserve_focus=True
+                )
+                self.claim_panel.hide_panel()
+                panel_type = "upgrades"
+            else:
+                self.claim_panel.show_panel(planet_info, planet_instance)
+                self.upgrade_panel.hide_panel()
+                panel_type = "claim"
+
             self.debug_notify(
-                f"◉ {planet['name']} ({planet['type']}) - Press E to toggle info/upgrades",
+                f"◉ {planet['name']} ({planet['type']}) - Press E to toggle info/{panel_type}",
                 title="Planet Selected",
                 timeout=3,
             )
         else:
             self.planet_status.hide_status()
-            self.debug_notify("No planets nearby - Use arrow keys to explore", timeout=2)
+            self.debug_notify(
+                "No planets nearby - Use arrow keys to explore", timeout=2
+            )
 
     def action_cycle_planets_reverse(self) -> None:
         """Cycle to previous planet"""
         view = self.query_one(SpaceView)
-        
+
         # If no planet is selected, select the closest one
         if view.selected_planet is None:
             planet = view.select_nearest_planet()
         else:
             # If a planet is already selected, cycle to the previous one
             planet = view.cycle_planet_selection(-1)
-        
+
         if planet:
             # Create planet_info dict for status window
             planet_info = {
@@ -589,39 +642,58 @@ class SpaceScreen(Screen):
                 "name": planet["name"],
                 "key": view.selected_planet,
             }
-            # Show both info and upgrade panels when cycling planets (preserve button focus)
+            # Show info panel and appropriate interaction panel based on claimed status
+            planet_instance = view.planet_instances.get(view.selected_planet)
             self.planet_status.show_planet_info(planet_info)
-            self.upgrade_panel.show_panel(planet_info, preserve_focus=True)
-            
+
+            if planet_instance and planet_instance.claimed:
+                self.upgrade_panel.show_panel(
+                    planet_info, planet_instance, preserve_focus=True
+                )
+                self.claim_panel.hide_panel()
+                panel_type = "upgrades"
+            else:
+                self.claim_panel.show_panel(planet_info, planet_instance)
+                self.upgrade_panel.hide_panel()
+                panel_type = "claim"
+
             self.debug_notify(
-                f"◉ {planet['name']} ({planet['type']}) - Press E to toggle info/upgrades",
+                f"◉ {planet['name']} ({planet['type']}) - Press E to toggle info/{panel_type}",
                 title="Planet Selected",
                 timeout=3,
             )
         else:
             self.planet_status.hide_status()
-            self.debug_notify("No planets nearby - Use arrow keys to explore", timeout=2)
+            self.debug_notify(
+                "No planets nearby - Use arrow keys to explore", timeout=2
+            )
 
     def action_toggle_info_panel(self) -> None:
         """Toggle info panel for currently selected planet"""
         view = self.query_one(SpaceView)
-        
+
         if view.selected_planet is None:
             self.debug_notify("No planet selected - Press Tab to select one", timeout=2)
             return
-        
-        # Check if panels are currently visible (both should be in sync)
-        panels_visible = self.planet_status.visible and self.upgrade_panel.visible
-        
+
+        # Get planet instance to check claimed status
+        planet_instance = view.planet_instances.get(view.selected_planet)
+
+        # Check if panels are currently visible
+        panels_visible = self.planet_status.visible and (
+            self.upgrade_panel.visible or self.claim_panel.visible
+        )
+
         if panels_visible:
-            # Hide both panels
+            # Hide all panels
             self.planet_status.hide_status()
             self.upgrade_panel.hide_panel()
+            self.claim_panel.hide_panel()
             self.debug_notify("Panels hidden - Tab to select planets", timeout=1)
         else:
-            # Show both info and upgrade panels for selected planet
+            # Show appropriate panel based on planet claimed status
             planet = view.planets.get(view.selected_planet)
-            if planet:
+            if planet and planet_instance:
                 planet_info = {
                     "position": planet["position"],
                     "type": planet["type"],
@@ -630,23 +702,28 @@ class SpaceScreen(Screen):
                     "name": planet["name"],
                     "key": view.selected_planet,
                 }
-                
-                # Force both panels to hide first, then show both
+
+                # Force all panels to hide first
                 self.planet_status.hide_status()
                 self.upgrade_panel.hide_panel()
-                
-                # Now show both panels (reset focus when first opening with E key)
+                self.claim_panel.hide_panel()
+
+                # Show status window always
                 self.planet_status.show_planet_info(planet_info)
-                self.upgrade_panel.show_panel(planet_info, preserve_focus=False)
-                
-                # Verify both are actually visible
-                if self.planet_status.visible and self.upgrade_panel.visible:
-                    self.debug_notify("Panels shown - Tab/Enter to navigate/upgrade", timeout=2)
+
+                # Show appropriate interaction panel based on claimed status
+                if planet_instance.claimed:
+                    # Show upgrade panel for claimed planets
+                    self.upgrade_panel.show_panel(
+                        planet_info, planet_instance, preserve_focus=False
+                    )
+                    self.debug_notify(
+                        "Claimed planet - Tab/Enter to navigate/upgrade", timeout=2
+                    )
                 else:
-                    self.debug_notify("Panel sync issue - trying again", timeout=1)
-                    # Try once more
-                    self.planet_status.show_planet_info(planet_info)
-                    self.upgrade_panel.show_panel(planet_info, preserve_focus=False)
+                    # Show claim panel for unclaimed planets
+                    self.claim_panel.show_panel(planet_info, planet_instance)
+                    self.debug_notify("Unclaimed planet - Enter to claim", timeout=2)
             else:
                 self.notify("Selected planet no longer available", timeout=2)
 
@@ -661,29 +738,89 @@ class SpaceScreen(Screen):
         self.action_cycle_planets_reverse()
 
     def action_handle_enter(self) -> None:
-        """Handle Enter key - activate upgrade button if panel is open"""
+        """Handle Enter key - activate upgrade button or claim button if panel is open"""
         if self.upgrade_panel.visible:
             upgrade_info = self.upgrade_panel.activate_focused_button()
             if upgrade_info:
                 self.process_upgrade_request(upgrade_info)
+        elif self.claim_panel.visible:
+            claim_info = self.claim_panel.activate_claim_button()
+            if claim_info:
+                # Run async claim processing
+                self.run_worker(self.process_claim_request(claim_info))
         else:
-            self.debug_notify("Press E to open upgrade panel for selected planet", timeout=2)
+            self.debug_notify("Press E to open panel for selected planet", timeout=2)
 
     def process_upgrade_request(self, upgrade_info):
         """Process an upgrade request"""
         resource_type = upgrade_info["resource_type"]
         cost = upgrade_info["cost"]
         planet_name = upgrade_info["planet_name"]
-        
+
         # TODO: Implement actual upgrade logic with resource checking
         # For now, just show notification (keep this one as it's actual gameplay feedback)
         self.notify(
             f"Upgrading {resource_type} on {planet_name} for {cost} gold",
-            title="Upgrade Requested", 
+            title="Upgrade Requested",
             timeout=3,
         )
+
+    async def process_claim_request(self, claim_info):
+        """Process a planet claim request"""
+        cost = claim_info["cost"]
+        planet_name = claim_info["planet_name"]
+        planet_data = claim_info["planet_data"]
+
+        # Check if player has enough gold
+        if self.latest_game_state.get("gold", 0) >= cost:
+            # Attempt to claim the planet
+            if planet_data and planet_data.claim_planet(cost):
+                # Deduct gold from player resources via NATS JetStream
+                try:
+                    deduct_message = {
+                        "gold": -cost,
+                        "food": 0,
+                        "metal": 0,
+                    }  # Negative value to subtract
+                    js = self.nats_client.nc.jetstream()
+                    await js.publish(
+                        "MASTER.resources", json.dumps(deduct_message).encode()
+                    )
+
+                    self.notify(
+                        f"Successfully claimed {planet_name} for {cost} gold!",
+                        title="Planet Claimed",
+                        timeout=3,
+                    )
+                    # Hide claim panel and show status only
+                    self.claim_panel.hide_panel()
+                    # Refresh the panel display to show upgrade panel
+                    self.action_toggle_info_panel()
+                    self.action_toggle_info_panel()
+                except Exception as e:
+                    logger.error(f"Failed to deduct gold via NATS: {e}")
+                    self.notify(
+                        f"Claimed {planet_name} but failed to update resources",
+                        title="Warning",
+                        timeout=3,
+                    )
+            else:
+                self.notify(
+                    f"Failed to claim {planet_name}",
+                    title="Claim Failed",
+                    timeout=3,
+                )
+        else:
+            self.notify(
+                f"Not enough gold! Need {cost}g but only have {self.latest_game_state.get('gold', 0)}g",
+                title="Insufficient Funds",
+                timeout=3,
+            )
 
     def on_upgrade_requested(self, message: UpgradeRequested) -> None:
         """Handle custom upgrade requested message"""
         self.process_upgrade_request(message.upgrade_info)
 
+    def on_claim_requested(self, message: ClaimRequested) -> None:
+        """Handle custom claim requested message"""
+        self.run_worker(self.process_claim_request(message.claim_info))
