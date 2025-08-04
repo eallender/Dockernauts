@@ -1,7 +1,7 @@
 services:
   nats:
     image: nats:latest
-    container_name: dockernauts_nats
+    container_name: dockernauts-nats
     networks:
       - dockernauts
     command: [
@@ -13,7 +13,7 @@ services:
 
   nats-box:
     image: natsio/nats-box
-    container_name: dockernauts_natsbox
+    container_name: dockernauts-natsbox
     restart: always
     networks:
       - dockernauts
@@ -23,8 +23,8 @@ services:
     tty: true
 
   master-station:
-    image: master-station:latest
-    container_name: dockernauts_master
+    image: dockernauts-master:latest
+    container_name: dockernauts-master
     environment:
       - NATS_ADDRESS=nats://nats:4222
     networks:
@@ -37,7 +37,7 @@ services:
     build:
       context: .
       dockerfile: ./docker/dockerfile.planet
-    image: dockernauts_planet:latest
+    image: dockernauts-planet:latest
     profiles:
       - buildonly
 

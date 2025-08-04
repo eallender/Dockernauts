@@ -6,6 +6,7 @@ WORKDIR /app
 RUN pip install poetry
 RUN poetry install
 
-COPY src/ src/
+COPY src/planet.py src/planet.py
+COPY src/utils src/utils
 
-CMD ["poetry", "run", "python", "src/master_station.py"]
+ENTRYPOINT ["poetry", "run", "python", "src/planet.py"]
