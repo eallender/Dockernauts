@@ -15,6 +15,7 @@ from tui.planet_claim_panel import ClaimRequested, PlanetClaimPanel
 from tui.planet_status import PlanetStatusWindow
 from tui.planet_upgrade_panel import PlanetUpgradePanel, UpgradeRequested
 from utils.config import AppConfig
+from utils.docker import start_planet_container
 from utils.logger import Logger
 
 CONFIG = AppConfig().get_config()
@@ -510,8 +511,11 @@ class SpaceScreen(Screen):
         sector = planet_info["sector"]
         planet_type = planet_info.get("type", "Unknown")
 
+        # Get planet instance if it exists
+        planet_instance = self.planet_instances.get(self.selected_planet)
+        
         # Show planet status window with detailed information
-        self.planet_status.show_planet_info(planet_info)
+        self.planet_status.show_planet_info(planet_info, planet_instance)
 
         self.debug_notify(
             f"Selected {planet_type} planet at ({px}, {py}) in sector {sector}",
@@ -597,7 +601,7 @@ class SpaceScreen(Screen):
             }
             # Show info panel and appropriate interaction panel based on claimed status
             planet_instance = view.planet_instances.get(view.selected_planet)
-            self.planet_status.show_planet_info(planet_info)
+            self.planet_status.show_planet_info(planet_info, planet_instance)
 
             if planet_instance and planet_instance.claimed:
                 self.upgrade_panel.show_panel(
@@ -644,7 +648,7 @@ class SpaceScreen(Screen):
             }
             # Show info panel and appropriate interaction panel based on claimed status
             planet_instance = view.planet_instances.get(view.selected_planet)
-            self.planet_status.show_planet_info(planet_info)
+            self.planet_status.show_planet_info(planet_info, planet_instance)
 
             if planet_instance and planet_instance.claimed:
                 self.upgrade_panel.show_panel(
@@ -709,7 +713,7 @@ class SpaceScreen(Screen):
                 self.claim_panel.hide_panel()
 
                 # Show status window always
-                self.planet_status.show_planet_info(planet_info)
+                self.planet_status.show_planet_info(planet_info, planet_instance)
 
                 # Show appropriate interaction panel based on claimed status
                 if planet_instance.claimed:
@@ -787,11 +791,30 @@ class SpaceScreen(Screen):
                         "MASTER.resources", json.dumps(deduct_message).encode()
                     )
 
-                    self.notify(
-                        f"Successfully claimed {planet_name} for {cost} gold!",
-                        title="Planet Claimed",
-                        timeout=3,
-                    )
+                    # Start Docker container for the claimed planet
+                    try:
+                        nats_address = getattr(self.nats_client, 'url', 'nats://localhost:4222')
+                        container = start_planet_container(planet_name, planet_data.uuid, nats_address)
+                        if container:
+                            self.notify(
+                                f"Successfully claimed {planet_name} for {cost} gold! Container started.",
+                                title="Planet Claimed",
+                                timeout=3,
+                            )
+                        else:
+                            self.notify(
+                                f"Claimed {planet_name} for {cost} gold but failed to start container",
+                                title="Planet Claimed - Warning",
+                                timeout=3,
+                            )
+                    except Exception as docker_error:
+                        logger.error(f"Failed to start Docker container for planet {planet_name}: {docker_error}")
+                        self.notify(
+                            f"Claimed {planet_name} for {cost} gold but Docker container failed to start",
+                            title="Planet Claimed - Warning",
+                            timeout=3,
+                        )
+                    
                     # Hide claim panel and show status only
                     self.claim_panel.hide_panel()
                     # Refresh the panel display to show upgrade panel

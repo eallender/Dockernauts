@@ -11,6 +11,8 @@ from textual.widgets import Button, Static
 from tui.game_screen import SpaceScreen
 from tui.intructions import InstructionsScreen
 from utils.config import AppConfig
+from utils.docker import cleanup_all_planet_containers
+from utils.logger import Logger
 from utils.nats import NatsClient
 
 CONFIG = AppConfig().get_config()
@@ -226,6 +228,10 @@ class TitleScreen(Screen):
 class DockernautsApp(App):
     BINDINGS = [("q", "quit", "Quit")]
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.logger = Logger(__name__).get_logger()
+
     async def on_mount(self) -> None:
         self.nats_client = NatsClient(NATS_ADDRESS, subject="game.state")
         await self.nats_client.connect()
@@ -235,6 +241,17 @@ class DockernautsApp(App):
         """Handle escape key to go back"""
         if len(self.screen_stack) > 1:
             self.pop_screen()
+
+    def exit(self, return_code: int = 0, message: str | None = None) -> None:
+        """Override exit to ensure cleanup happens only on full game exit"""
+        try:
+            self.logger.info("Game fully exiting - starting background container cleanup")
+            cleanup_all_planet_containers()
+            self.logger.info("Background cleanup started")
+        except Exception as e:
+            self.logger.error(f"Error starting exit cleanup: {e}")
+        finally:
+            super().exit(return_code, message)
 
 
 if __name__ == "__main__":

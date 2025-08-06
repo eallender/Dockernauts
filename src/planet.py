@@ -5,6 +5,7 @@ import time
 from enum import Enum
 from typing import Dict, Optional
 
+from utils.docker import remove_container
 from utils.logger import Logger
 from utils.nats import NatsClient
 
@@ -97,6 +98,11 @@ class Planet:
                         await self._send_resources_to_master(collected_resources)
                         self.logger.debug(f"Sent resources: {collected_resources}")
 
+                    # Check if resources are depleted after collection
+                    if self._check_resource_depletion():
+                        await self._handle_resource_depletion()
+                        break  # Exit the loop to stop processing
+
                     self.last_collection_time = current_time
 
                 await asyncio.sleep(0.1)  # Small sleep to prevent busy waiting
@@ -129,6 +135,39 @@ class Planet:
                 self.available_resources[resource_type] -= actual_collection
 
         return collected
+
+    def _check_resource_depletion(self) -> bool:
+        """Check if all resources are depleted"""
+        total_resources = sum(self.available_resources.values())
+        return total_resources <= 0
+
+    async def _handle_resource_depletion(self):
+        """Handle planet shutdown when resources are depleted"""
+        self.logger.info(f"Planet {self.name} has depleted all resources. Shutting down container.")
+        
+        # Stop the planet processing
+        self.running = False
+        
+        # Remove the Docker container
+        container_name = f"planet-{self.uuid}"
+        try:
+            remove_container(container_name)
+        except Exception as e:
+            self.logger.error(f"Failed to remove container {container_name}: {e}")
+        
+        # Send final shutdown message to master
+        try:
+            shutdown_message = {
+                "planet_uuid": self.uuid,
+                "planet_name": self.name,
+                "status": "depleted",
+                "message": "Planet resources depleted - container shutdown"
+            }
+            
+            if self.resource_publisher:
+                await self.resource_publisher.publish_js_json(shutdown_message)
+        except Exception as e:
+            self.logger.error(f"Failed to send shutdown message: {e}")
 
     async def _send_resources_to_master(self, resources: Dict[str, int]):
         """Send collected resources to master station"""
