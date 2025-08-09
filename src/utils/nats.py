@@ -116,6 +116,17 @@ class NatsClient:
     async def on_error(self, error):
         self.logger.error(f"A NATS error occurred: {error}")
 
+    async def purge_stream_messages(self, stream_name: str):
+        """Purge all messages from a specific stream"""
+        if not self.js:
+            self.logger.error("Cannot purge: not connected to JetStream.")
+            return
+        try:
+            await self.js.purge_stream(stream_name)
+            self.logger.info(f"Purged all messages from stream '{stream_name}'")
+        except Exception as e:
+            self.logger.error(f"Failed to purge stream '{stream_name}': {e}")
+
     async def close(self):
         if self.nc.is_connected:
             self.logger.info("Closing NATS connection...")

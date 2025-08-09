@@ -5,7 +5,6 @@ import time
 from enum import Enum
 from typing import Dict, Optional
 
-from utils.docker import remove_container
 from utils.logger import Logger
 from utils.nats import NatsClient
 
@@ -148,12 +147,7 @@ class Planet:
         # Stop the planet processing
         self.running = False
         
-        # Remove the Docker container
-        container_name = f"planet-{self.uuid}"
-        try:
-            remove_container(container_name)
-        except Exception as e:
-            self.logger.error(f"Failed to remove container {container_name}: {e}")
+        # Note: Container cleanup is handled by the host system
         
         # Send final shutdown message to master
         try:

@@ -1,22 +1,56 @@
 import os
 import random
+import threading
 
 from textual import events
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.screen import Screen
 from textual.timer import Timer
-from textual.widgets import Button, Static
+from textual.widgets import Button, Static, Label
+from textual.containers import Center, Middle
 
 from tui.game_screen import SpaceScreen
 from tui.intructions import InstructionsScreen
 from utils.config import AppConfig
-from utils.docker import cleanup_all_planet_containers
+from utils.docker import cleanup_all_planet_containers, cleanup_non_home_planet_containers
 from utils.logger import Logger
 from utils.nats import NatsClient
 
 CONFIG = AppConfig().get_config()
 NATS_ADDRESS = os.getenv("NATS_ADDRESS", "nats://localhost:4222")
+
+
+class CleanupModal(Screen):
+    """Modal screen shown during planet cleanup"""
+    
+    def compose(self) -> ComposeResult:
+        yield Container(
+            Center(
+                Middle(
+                    Container(
+                        Label("🔥 DESTROYING PLANETS...", id="cleanup-title"),
+                        Label("Please wait while claimed planets are being removed", id="cleanup-message"),
+                        id="cleanup-dialog"
+                    )
+                )
+            ),
+            id="cleanup-overlay"
+        )
+
+    def on_mount(self) -> None:
+        """Start cleanup when modal is shown"""
+        self.call_later(self._perform_cleanup)
+
+    async def _perform_cleanup(self) -> None:
+        """Perform the actual cleanup and then close modal"""
+        try:
+            cleanup_non_home_planet_containers()
+        except Exception as e:
+            self.app.logger.error(f"Error during cleanup: {e}")
+        finally:
+            # Close the modal and return to title screen
+            self.app.pop_screen()
 
 
 class StarField(Static):
@@ -162,11 +196,32 @@ class TitleScreen(Screen):
         """Select the currently focused button"""
         current_button_id = self.button_ids[self.current_button_index]
         if current_button_id == "start":
-            self.app.push_screen(SpaceScreen(nats_client=self.nats_client))
+            self._start_new_game()
         elif current_button_id == "instructions":
             self.app.push_screen(InstructionsScreen())
         elif current_button_id == "exit":
             self.app.exit()
+
+    def _start_new_game(self) -> None:
+        """Start a new game with reset state"""
+        try:
+            # Send game reset message via NATS
+            self.app.call_later(self._send_game_reset)
+            
+            # Start the game screen
+            self.app.push_screen(SpaceScreen(nats_client=self.nats_client))
+        except Exception as e:
+            self.app.logger.error(f"Error starting new game: {e}")
+
+    async def _send_game_reset(self) -> None:
+        """Send game reset message to master station"""
+        try:
+            reset_publisher = NatsClient(NATS_ADDRESS, "game.reset")
+            await reset_publisher.connect()
+            await reset_publisher.publish_json({"action": "reset"})
+            await reset_publisher.close()
+        except Exception as e:
+            self.app.logger.error(f"Failed to send game reset message: {e}")
 
     def on_resize(self, event: events.Resize) -> None:
         width = event.size.width
@@ -218,7 +273,7 @@ class TitleScreen(Screen):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "start":
-            self.app.push_screen(SpaceScreen(nats_client=self.nats_client))
+            self._start_new_game()
         elif event.button.id == "exit":
             self.app.exit()
         elif event.button.id == "instructions":
@@ -241,6 +296,18 @@ class DockernautsApp(App):
         """Handle escape key to go back"""
         if len(self.screen_stack) > 1:
             self.pop_screen()
+
+    def pop_screen(self) -> Screen | None:
+        """Override pop_screen to add cleanup when leaving game screen"""
+        current_screen = self.screen
+        
+        # If we're leaving the SpaceScreen (game screen), show cleanup modal
+        if isinstance(current_screen, SpaceScreen):
+            super().pop_screen()  # Remove game screen first
+            self.push_screen(CleanupModal())  # Show cleanup modal
+            return None
+        
+        return super().pop_screen()
 
     def exit(self, return_code: int = 0, message: str | None = None) -> None:
         """Override exit to ensure cleanup happens only on full game exit"""

@@ -105,6 +105,42 @@ def _cleanup_containers_sync():
         logger.error(f"Error during planet container cleanup: {e.explanation}")
 
 
+def cleanup_non_home_planet_containers():
+    """Remove all planet containers except home-planet for game reset"""
+    if client is None:
+        logger.error("Cannot cleanup planet containers: Docker client not available")
+        return
+
+    try:
+        logger.info("Starting cleanup of non-home planet containers...")
+        # Get all planet containers (both "planet-{uuid}" and "dockernauts-planet-home")
+        all_containers = client.containers.list(all=True)
+        containers = [c for c in all_containers if "planet" in c.name]
+
+        removed_count = 0
+        for container in containers:
+            # Skip the home-planet container (dockernauts-planet-home)
+            if container.name == "dockernauts-planet-home":
+                logger.info(f"Skipping home planet container: {container.name}")
+                continue
+                
+            try:
+                logger.info(f"Removing planet container: {container.name}")
+                container.stop()
+                container.remove()
+                removed_count += 1
+            except Exception as e:
+                logger.error(f"Failed to remove container {container.name}: {e}")
+
+        if removed_count > 0:
+            logger.info(f"Successfully removed {removed_count} non-home planet containers")
+        else:
+            logger.info("No non-home planet containers found to remove")
+
+    except docker.errors.APIError as e:
+        logger.error(f"Error during planet container cleanup: {e.explanation}")
+
+
 def cleanup_all_planet_containers():
     """Remove all planet containers when the game exits - runs in background"""
     logger.info("Starting background cleanup of planet containers")
