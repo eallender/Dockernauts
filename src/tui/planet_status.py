@@ -243,7 +243,9 @@ class PlanetStatusWindow(Vertical):
                     if self.current_planet_data.available_resources.get(resource_type, 0) > 0:
                         # Base collection rate (similar to planet.py)
                         base_collection = self.current_planet_data.resource_collection_speed.get(resource_type, 1)
-                        upgrade_multiplier = 1 + (self.current_planet_data.upgrade_levels.get(resource_type, 0) * 0.5)
+                        # Match the balanced multiplier from planet.py
+                        upgrade_level = self.current_planet_data.upgrade_levels.get(resource_type, 0)
+                        upgrade_multiplier = 1 + (upgrade_level * 0.75)
                         collection_amount = int(base_collection * upgrade_multiplier * time_diff)
                         
                         # Don't collect more than available

@@ -1,5 +1,6 @@
 import json
 import random
+import time
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -760,14 +761,93 @@ class SpaceScreen(Screen):
         resource_type = upgrade_info["resource_type"]
         cost = upgrade_info["cost"]
         planet_name = upgrade_info["planet_name"]
+        planet_data = upgrade_info.get("planet_data")
 
-        # TODO: Implement actual upgrade logic with resource checking
-        # For now, just show notification (keep this one as it's actual gameplay feedback)
-        self.notify(
-            f"Upgrading {resource_type} on {planet_name} for {cost} gold",
-            title="Upgrade Requested",
-            timeout=3,
-        )
+        # Check if player has enough metal
+        if self.latest_game_state.get("metal", 0) >= cost:
+            # Process the upgrade
+            self.run_worker(self._execute_upgrade(upgrade_info))
+        else:
+            current_metal = self.latest_game_state.get("metal", 0)
+            self.notify(
+                f"Not enough metal! Need {cost}, have {current_metal}",
+                title="Upgrade Failed",
+                timeout=3,
+            )
+
+    async def _execute_upgrade(self, upgrade_info):
+        """Execute an upgrade request with resource deduction and NATS communication"""
+        resource_type = upgrade_info["resource_type"]
+        cost = upgrade_info["cost"]
+        planet_name = upgrade_info["planet_name"]
+        planet_data = upgrade_info.get("planet_data")
+        
+        try:
+            # Double-check we still have enough metal (resources might have changed)
+            current_metal = self.latest_game_state.get("metal", 0)
+            if current_metal < cost:
+                self.notify(
+                    f"Upgrade failed: Not enough metal! Need {cost}, have {current_metal}",
+                    title="Insufficient Resources",
+                    timeout=3,
+                )
+                return
+            
+            # Deduct metal from player resources via NATS JetStream
+            deduct_message = {
+                "gold": 0,
+                "food": 0,
+                "metal": -cost,  # Negative value to subtract
+            }
+            js = self.nats_client.nc.jetstream()
+            await js.publish(
+                "MASTER.resources", json.dumps(deduct_message).encode()
+            )
+
+            # Send upgrade command to the planet's Docker container via NATS
+            if planet_data and hasattr(planet_data, 'uuid'):
+                upgrade_command = {
+                    "resource_type": resource_type,
+                    "cost": cost,
+                    "timestamp": time.time()
+                }
+                
+                await js.publish(
+                    f"PLANETS.{planet_data.uuid}.upgrades",
+                    json.dumps(upgrade_command).encode()
+                )
+                
+                # Apply upgrade locally (the container will also apply it)
+                if hasattr(planet_data, '_apply_upgrade'):
+                    planet_data._apply_upgrade(resource_type)
+                
+                # Update upgrade costs in the UI panel
+                if self.upgrade_panel.current_planet_data == planet_data:
+                    self.upgrade_panel.show_panel(
+                        {"name": planet_name}, 
+                        planet_data, 
+                        preserve_focus=True
+                    )
+
+                self.notify(
+                    f"Upgraded {resource_type} on {planet_name} for {cost} metal!",
+                    title="Upgrade Successful",
+                    timeout=3,
+                )
+            else:
+                self.notify(
+                    "Error: Planet data not available for upgrade",
+                    title="Upgrade Failed", 
+                    timeout=3,
+                )
+                
+        except Exception as e:
+            logger.error(f"Failed to execute upgrade: {e}")
+            self.notify(
+                f"Upgrade failed: {str(e)}",
+                title="Upgrade Error",
+                timeout=3,
+            )
 
     async def process_claim_request(self, claim_info):
         """Process a planet claim request"""

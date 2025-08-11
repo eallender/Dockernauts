@@ -12,7 +12,7 @@ class UpgradeButton(Button):
     def __init__(self, resource_type: str, cost: int, **kwargs):
         self.resource_type = resource_type
         self.cost = cost
-        super().__init__(f"Upgrade {resource_type.title()} ({cost}g)", **kwargs)
+        super().__init__(f"Upgrade {resource_type.title()} ({cost}m)", **kwargs)
         self.styles.margin = (0, 1)
         self.styles.padding = (0, 1)
 
@@ -49,7 +49,7 @@ class PlanetUpgradePanel(Vertical):
         self.metal_button = UpgradeButton("metal", 100)
         self.metal_button.add_class("upgrade-metal")
         
-        self.instructions = Static("Tab/Shift+Tab: Navigate  Enter: Upgrade")
+        self.instructions = Static("Tab/Shift+Tab: Navigate  Enter: Upgrade (costs metal)")
         self.instructions.add_class("upgrade-instructions")
         
         self.divider2 = Static("━━━━━━━━━━━━━━━━━━━━━━━━━")
@@ -94,26 +94,34 @@ class PlanetUpgradePanel(Vertical):
     
     def watch_food_cost(self, value):
         if hasattr(self, 'food_button'):
-            self.food_button.label = f"Upgrade Food ({value}g)"
+            self.food_button.label = f"Upgrade Food ({value}m)"
+            self.food_button.cost = value
     
     def watch_gold_cost(self, value):  
         if hasattr(self, 'gold_button'):
-            self.gold_button.label = f"Upgrade Gold ({value}g)"
+            self.gold_button.label = f"Upgrade Gold ({value}m)"
+            self.gold_button.cost = value
     
     def watch_metal_cost(self, value):
         if hasattr(self, 'metal_button'):
-            self.metal_button.label = f"Upgrade Metal ({value}g)"
+            self.metal_button.label = f"Upgrade Metal ({value}m)"
+            self.metal_button.cost = value
     
     def show_panel(self, planet_info, planet_data=None, preserve_focus=True):
         """Show the upgrade panel for the selected planet"""
         self.planet_name = planet_info.get("name", "Unknown Planet")
         self.current_planet_data = planet_data
         
-        # Calculate upgrade costs (for now, simple fixed costs)
-        # TODO: Make this dynamic based on current upgrade levels
-        self.food_cost = 100
-        self.gold_cost = 150
-        self.metal_cost = 200
+        # Calculate upgrade costs dynamically based on current levels
+        if planet_data and hasattr(planet_data, 'calculate_upgrade_cost'):
+            self.food_cost = planet_data.calculate_upgrade_cost("food")
+            self.gold_cost = planet_data.calculate_upgrade_cost("gold") 
+            self.metal_cost = planet_data.calculate_upgrade_cost("metal")
+        else:
+            # Fallback to base costs if no planet data available
+            self.food_cost = 50
+            self.gold_cost = 50
+            self.metal_cost = 50
         
         self.visible = True
         self.is_panel_visible = True

@@ -12,7 +12,7 @@ NATS_STREAMS = ["PLANETS", "MASTER"]
 
 class MasterStation:
     def __init__(self):
-        self.resources = {"gold": 200, "food": 200, "metal": 200}
+        self.resources = {"gold": 250, "food": 250, "metal": 250}
         self.logger = Logger(__name__).get_logger()
         self.game_state_publisher = None  # track it for reuse
         self.game_reset_subscriber = None
@@ -25,7 +25,9 @@ class MasterStation:
             self.logger.debug("Received resource transmission")
             data = json.loads(msg.data.decode())
             for k, v in data.items():
-                self.resources[k] += int(v)
+                new_value = self.resources[k] + int(v)
+                # Prevent resources from going negative
+                self.resources[k] = max(0, new_value)
             self.logger.debug(
                 f"Gold: {self.resources.get('gold')}, Food: {self.resources.get('food')}, Metal: {self.resources.get('metal')}"
             )

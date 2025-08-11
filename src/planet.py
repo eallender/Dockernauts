@@ -118,9 +118,10 @@ class Planet:
             if self.available_resources.get(resource_type, 0) > 0:
                 # Calculate collection amount based on speed, upgrades, and time
                 base_collection = self.resource_collection_speed.get(resource_type, 1)
-                upgrade_multiplier = 1 + (
-                    self.upgrade_levels.get(resource_type, 0) * 0.5
-                )
+                # Balanced upgrade multiplier: 1x, 1.75x, 2.5x, 3.25x, 4x per level
+                # Provides meaningful upgrades but hunger will eventually outscale
+                upgrade_level = self.upgrade_levels.get(resource_type, 0)
+                upgrade_multiplier = 1 + (upgrade_level * 0.75)
                 collection_amount = int(
                     base_collection * upgrade_multiplier * time_diff
                 )
@@ -177,7 +178,6 @@ class Planet:
         try:
             data = json.loads(msg.data.decode())
             resource_type = data.get("resource_type")
-            upgrade_cost = data.get("cost", {})
 
             if resource_type in ["food", "gold", "metal"]:
                 # Check if upgrade is possible (this would normally check master station resources)
@@ -239,6 +239,16 @@ class Planet:
 
         return False
 
+    def calculate_upgrade_cost(self, resource_type: str) -> int:
+        """Calculate the metal cost to upgrade a specific resource type"""
+        if resource_type not in self.upgrade_levels:
+            return 0
+        
+        current_level = self.upgrade_levels[resource_type]
+        # Base cost starts at 50 metal, doubles each level: 50, 100, 200, 400, etc.
+        base_cost = 50
+        return base_cost * (2 ** current_level)
+
     def get_planet_status(self) -> Dict:
         """Get current planet status for UI display"""
         return {
@@ -253,6 +263,11 @@ class Planet:
             "available_resources": self.available_resources.copy(),
             "collection_speed": self.resource_collection_speed.copy(),
             "upgrade_levels": self.upgrade_levels.copy(),
+            "upgrade_costs": {
+                "food": self.calculate_upgrade_cost("food"),
+                "gold": self.calculate_upgrade_cost("gold"),
+                "metal": self.calculate_upgrade_cost("metal"),
+            },
             "running": self.running,
         }
 

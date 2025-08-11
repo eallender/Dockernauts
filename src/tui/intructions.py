@@ -85,7 +85,7 @@ When you select a planet with **Tab**, an info panel and either a claim panel or
 - **Info Panel**: Shows planet details and claimed status
 - **Upgrade Panel**: Contains buttons to upgrade resource production rates
 - **Navigation**: Use **Up/Down arrows** to cycle through upgrade buttons
-- **Activation**: Press **Enter** to purchase the selected upgrade (costs gold)
+- **Activation**: Press **Enter** to purchase the selected upgrade (costs metal)
 
 **General:**
 - **Panel Toggle**: Press **E** to hide/show panels
