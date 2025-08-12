@@ -4,16 +4,18 @@ import threading
 
 from textual import events
 from textual.app import App, ComposeResult
-from textual.containers import Container, Horizontal, Vertical
+from textual.containers import Center, Container, Horizontal, Middle, Vertical
 from textual.screen import Screen
 from textual.timer import Timer
-from textual.widgets import Button, Static, Label
-from textual.containers import Center, Middle
+from textual.widgets import Button, Label, Static
 
 from tui.game_screen import SpaceScreen
-from tui.intructions import InstructionsScreen
+from tui.instructions import InstructionsScreen
 from utils.config import AppConfig
-from utils.docker import cleanup_all_planet_containers, cleanup_non_home_planet_containers
+from utils.docker import (
+    cleanup_all_planet_containers,
+    cleanup_non_home_planet_containers,
+)
 from utils.logger import Logger
 from utils.nats import NatsClient
 
@@ -23,19 +25,22 @@ NATS_ADDRESS = os.getenv("NATS_ADDRESS", "nats://localhost:4222")
 
 class CleanupModal(Screen):
     """Modal screen shown during planet cleanup"""
-    
+
     def compose(self) -> ComposeResult:
         yield Container(
             Center(
                 Middle(
                     Container(
                         Label("🔥 DESTROYING PLANETS...", id="cleanup-title"),
-                        Label("Please wait while claimed planets are being removed", id="cleanup-message"),
-                        id="cleanup-dialog"
+                        Label(
+                            "Please wait while claimed planets are being removed",
+                            id="cleanup-message",
+                        ),
+                        id="cleanup-dialog",
                     )
                 )
             ),
-            id="cleanup-overlay"
+            id="cleanup-overlay",
         )
 
     def on_mount(self) -> None:
@@ -207,7 +212,7 @@ class TitleScreen(Screen):
         try:
             # Send game reset message via NATS
             self.app.call_later(self._send_game_reset)
-            
+
             # Start the game screen
             self.app.push_screen(SpaceScreen(nats_client=self.nats_client))
         except Exception as e:
@@ -217,9 +222,10 @@ class TitleScreen(Screen):
         """Send game reset message to master station"""
         try:
             import json
+
             reset_publisher = NatsClient(NATS_ADDRESS, "game.reset")
             await reset_publisher.connect()
-            
+
             # Use basic publish since reset messages don't need JetStream
             message = json.dumps({"action": "reset"})
             await reset_publisher.nc.publish("game.reset", message.encode())
@@ -304,19 +310,21 @@ class DockernautsApp(App):
     def pop_screen(self) -> Screen | None:
         """Override pop_screen to add cleanup when leaving game screen"""
         current_screen = self.screen
-        
+
         # If we're leaving the SpaceScreen (game screen), show cleanup modal
         if isinstance(current_screen, SpaceScreen):
             super().pop_screen()  # Remove game screen first
             self.push_screen(CleanupModal())  # Show cleanup modal
             return None
-        
+
         return super().pop_screen()
 
     def exit(self, return_code: int = 0, message: str | None = None) -> None:
         """Override exit to ensure cleanup happens only on full game exit"""
         try:
-            self.logger.info("Game fully exiting - starting background container cleanup")
+            self.logger.info(
+                "Game fully exiting - starting background container cleanup"
+            )
             cleanup_all_planet_containers()
             self.logger.info("Background cleanup started")
         except Exception as e:
