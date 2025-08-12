@@ -472,6 +472,8 @@ class SpaceScreen(Screen):
         self.nats_client = nats_client
         self.latest_game_state = {}
         self.debug_mode = CONFIG.get("debug_mode", False)
+        self.start_time = time.time()
+        self.status_timer = None
 
     def compose(self):
         status_bar = StatusBar()
@@ -498,7 +500,7 @@ class SpaceScreen(Screen):
 
         space_view.set_status_callback(self.update_sector_from_space_view)
         space_view.set_planet_click_callback(self.on_planet_clicked)
-        self.set_interval(1, self.update_status)
+        self.status_timer = self.set_interval(1, self.update_status)
         space_view.update_sector_position()
 
     def debug_notify(self, message, title=None, timeout=2):
@@ -543,6 +545,30 @@ class SpaceScreen(Screen):
         self.status.food = resources.get("food", 0)
         self.status.gold = resources.get("gold", 0)
         self.status.metal = resources.get("metal", 0)
+        
+        # Check if food has reached zero - trigger game over
+        if self.status.food <= 0:
+            self._trigger_game_over()
+
+    def _trigger_game_over(self):
+        """Trigger game over screen with current stats"""
+        from tui.game_over_screen import GameOverScreen
+        
+        # Stop the status update timer to prevent further updates
+        if self.status_timer:
+            self.status_timer.stop()
+        
+        # Calculate game time
+        elapsed = time.time() - self.start_time
+        minutes = int(elapsed // 60)
+        seconds = int(elapsed % 60)
+        game_time = f"{minutes:02d}:{seconds:02d}"
+        
+        # Calculate score (could be based on resources, time survived, etc.)
+        final_score = self.status.gold + self.status.metal + (minutes * 10)
+        
+        # Push game over screen
+        self.app.push_screen(GameOverScreen(game_time=game_time, final_score=final_score))
 
     def action_pan(self, direction: str) -> None:
         # If upgrade panel is open, use up/down arrows for button navigation instead of panning

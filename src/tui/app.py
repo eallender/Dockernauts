@@ -216,9 +216,13 @@ class TitleScreen(Screen):
     async def _send_game_reset(self) -> None:
         """Send game reset message to master station"""
         try:
+            import json
             reset_publisher = NatsClient(NATS_ADDRESS, "game.reset")
             await reset_publisher.connect()
-            await reset_publisher.publish_json({"action": "reset"})
+            
+            # Use basic publish since reset messages don't need JetStream
+            message = json.dumps({"action": "reset"})
+            await reset_publisher.nc.publish("game.reset", message.encode())
             await reset_publisher.close()
         except Exception as e:
             self.app.logger.error(f"Failed to send game reset message: {e}")

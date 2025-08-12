@@ -94,9 +94,9 @@ class MasterStation:
 
     async def reset_game_state(self):
         """Reset the game state for a new game"""
-        self.resources = {"gold": 200, "food": 200, "metal": 200}
+        self.resources = {"gold": 250, "food": 250, "metal": 250}
         self.game_start_time = time.time()
-        self.logger.info("Game state reset - starting with 200 of each resource")
+        self.logger.info("Game state reset - starting with 250 of each resource")
 
     async def game_reset_cb(self, msg):
         """Handle game reset messages"""
